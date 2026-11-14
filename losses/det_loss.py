@@ -1,0 +1,115 @@
+"""
+Unified detection loss dispatcher for LucidDet (Pure PyTorch).
+Integrates target assignment (SimOTA), classification loss (QFL),
+and bounding box regression loss (GIoU/CIoU).
+"""
+
+from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+from assigners.simota import dynamic_soft_label_assign
+from losses import build_box_loss, build_cls_loss
+
+
+def det_loss(
+    model_out: Any,
+    gt_boxes_list: Sequence[torch.Tensor],
+    gt_labels_list: Sequence[torch.Tensor],
+    cls_loss: Union[str, nn.Module, Callable] = "qfl",
+    box_loss: Union[str, nn.Module, Callable] = "giou",
+    box_weight: float = 3.5,
+    l1_weight: float = 0.25,
+) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    """
+    Compute multi-task detection loss for anchor-free detectors.
+
+    Args:
+        model_out: Model output (dict or DetectionOutput) containing:
+            'pred_cls': (B, A, num_classes)
+            'pred_boxes': (B, A, 4)
+            'anchor_centers': (A, 2)
+            'anchor_strides': (A, 1) or (A,)
+        gt_boxes_list: List of length B with (G_i, 4) ground-truth boxes in xyxy.
+        gt_labels_list: List of length B with (G_i,) ground-truth class labels.
+        cls_loss: Classification loss instance or name (default: 'qfl').
+        box_loss: Box regression loss instance or name (default: 'giou').
+        box_weight: Multiplier weight for bounding box loss.
+        l1_weight: Multiplier weight for auxiliary smooth L1 box loss.
+
+    Returns:
+        total_loss: Scalar loss tensor with attached computational graph.
+        loss_dict: Dictionary containing component losses ('loss_cls', 'loss_box', 'avg_factor').
+    """
+    if isinstance(cls_loss, str):
+        cls_loss_fn: Callable = build_cls_loss(cls_loss)
+    else:
+        cls_loss_fn = cls_loss
+
+    if isinstance(box_loss, str):
+        box_loss_fn: Callable = build_box_loss(box_loss)
+    else:
+        box_loss_fn = box_loss
+
+    pred_cls = model_out["pred_cls"]
+    pred_boxes = model_out["pred_boxes"]
+    centers = model_out["anchor_centers"]
+    strides = model_out["anchor_strides"]
+
+    if strides.ndim == 1:
+        strides = strides.unsqueeze(-1)
+
+    batch_size, num_anchors, num_classes = pred_cls.shape
+    device = pred_cls.device
+
+    cls_parts: List[torch.Tensor] = []
+    box_parts: List[torch.Tensor] = []
+    avg_terms: List[torch.Tensor] = []
+
+    for b in range(batch_size):
+        gb = gt_boxes_list[b].to(device)
+        gl = gt_labels_list[b].to(device)
+
+        labels, label_weights, bbox_targets, assign_metrics = dynamic_soft_label_assign(
+            pred_cls_logits=pred_cls[b].detach().float(),
+            pred_boxes=pred_boxes[b].detach().float(),
+            centers=centers.float(),
+            strides=strides.float(),
+            gt_boxes=gb,
+            gt_labels=gl,
+            num_classes=num_classes,
+        )
+
+        pc_f = pred_cls[b].float()
+        pb_f = pred_boxes[b].float()
+
+        target_scores = torch.zeros_like(pc_f)
+        pos = labels < num_classes
+        if pos.any():
+            target_scores[pos, labels[pos]] = assign_metrics[pos]
+
+        cls_parts.append(cls_loss_fn(pc_f, target_scores).sum(-1) * label_weights)
+        avg_terms.append(assign_metrics.sum())
+
+        if pos.any():
+            iou = box_loss_fn(pb_f[pos], bbox_targets[pos])
+            l1 = F.smooth_l1_loss(
+                pb_f[pos] / strides[pos], bbox_targets[pos] / strides[pos], reduction="none"
+            ).sum(-1)
+            box_parts.append((iou + l1_weight * l1) * assign_metrics[pos])
+
+    avg_factor = torch.stack(avg_terms).sum().clamp(min=1.0)
+    loss_cls = torch.cat(cls_parts).sum() / avg_factor
+
+    if box_parts:
+        loss_box = torch.cat(box_parts).sum() / avg_factor
+    else:
+        loss_box = (pred_boxes.sum(dim=-1) * 0.0).sum()
+
+    total_loss = loss_cls + box_weight * loss_box
+    return total_loss, {
+        "loss_cls": loss_cls,
+        "loss_box": loss_box,
+        "avg_factor": avg_factor,
+    }
