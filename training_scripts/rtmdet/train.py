@@ -21,7 +21,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from datasets import DetDataset, det_collate
-
 from engine import COCOEvaluator, build_lr_scheduler
 from losses import det_loss
 from models import RTMDet

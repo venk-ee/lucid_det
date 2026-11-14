@@ -16,11 +16,11 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 
-from datasets import DetDataset, build_det_transform, det_collate
-
+from datasets import DetDataset, det_collate
 from engine import ModelEMA, build_lr_scheduler
 from losses import YOLOv1Loss, det_loss
 from models import build_rtmdet, build_yolov1, build_yolox
+from transforms import build_det_transform
 
 
 def create_model(model_name: str, num_classes: int) -> torch.nn.Module:
