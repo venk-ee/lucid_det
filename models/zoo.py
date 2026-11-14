@@ -59,6 +59,7 @@ def build_yolov1(
     max_num: int = 100,
     split_size: int = 7,
     num_boxes: int = 2,
+    img_size: float = 640.0,
     S: Optional[int] = None,
     B: Optional[int] = None,
     **kwargs: Any,
@@ -75,5 +76,6 @@ def build_yolov1(
         max_num=max_num,
         split_size=split_size,
         num_boxes=num_boxes,
+        img_size=img_size,
         **kwargs,
     )

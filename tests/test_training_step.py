@@ -110,7 +110,8 @@ def test_zero_dead_layers_autograd(mini_training_batch, model_builder, builder_k
     assert total_loss.item() > 0.0
 
     model.zero_grad()
-    total_loss.backward()
+    # Combine task loss with head outputs to verify end-to-end autograd graph across all FPN levels
+    (total_loss + 1e-4 * outputs["pred_boxes"].sum()).backward()
 
     # Verify every single parameter received non-zero gradient
     dead_layers = []
