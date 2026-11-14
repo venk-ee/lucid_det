@@ -47,6 +47,24 @@ ignore = [
   "E501",  # Line too long (handled automatically by the formatter)
 ]
 
+[tool.ruff.lint.isort]
+known-first-party = [
+  "assigners",
+  "backbones",
+  "core",
+  "datasets",
+  "engine",
+  "heads",
+  "losses",
+  "models",
+  "necks",
+  "runners",
+  "training_scripts",
+  "transforms",
+  "utils",
+  "weights",
+]
+
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402", "F401"]
 "tools/*" = ["E402"]
