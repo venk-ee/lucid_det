@@ -187,9 +187,7 @@ def main() -> None:
     # 3. YOLOv1
     run_yolov1_sanity(device, num_classes=20, S=7, B=2)
 
-    print("\n==================================================")
-    print("ALL 3 MODEL FAMILIES (RTMDet, YOLOX, YOLOv1) PASSED ON CUDA!")
-    print("==================================================")
+    print(f"ALL 3 MODEL FAMILIES (RTMDet, YOLOX, YOLOv1) PASSED ON {device.type.upper()}!")
 
 
 if __name__ == "__main__":
