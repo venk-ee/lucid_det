@@ -1,0 +1,35 @@
+# Virtual Environment
+my_env/
+.venv/
+venv/
+env/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Large Model Weights & Checkpoints
+*.pth
+*.pt
+*.onnx
+*.engine
+checkpoints/
+work_dirs/
+outputs/
+runs/
+logs/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+# Data
+/data/
+/datasets/
+/coco/
