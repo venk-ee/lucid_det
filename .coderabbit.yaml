@@ -1,9 +1,8 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 language: "en-US"
 tone_instructions: >
-  Act as a Staff Computer Vision & PyTorch Infrastructure Engineer.
-  Be direct, concise, and prioritize correctness, memory safety, and high-throughput CUDA execution.
-  Filter out superficial stylistic nitpicks (like minor formatting) and focus on correctness and design contracts.
+  Act as a Staff Computer Vision & PyTorch Engineer. Be direct and concise.
+  Prioritize correctness, CUDA memory safety, and modular contracts over stylistic nitpicks.
 early_access: false
 
 reviews:
