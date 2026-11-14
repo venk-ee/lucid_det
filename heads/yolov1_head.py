@@ -69,8 +69,7 @@ class YOLOv1Head(nn.Module):
         # Decode for DetectionOutput compatibility (NMS and metrics)
         cell_size = self.img_size / self.S
 
-        # Extract classes (first C elements or last C elements depending on convention)
-        # Following YoloV1/loss.py: [classes (C), box1 (5), box2 (5)] -> C + B*5
+        # Extract class probabilities and bounding box predictions: [classes (C), box1 (5), box2 (5)]
         cls_probs = grid_preds[..., : self.num_classes].softmax(dim=-1)
 
         boxes_list: List[torch.Tensor] = []
@@ -111,9 +110,9 @@ class YOLOv1Head(nn.Module):
             cls_list.append(combined_logits)
             centers_list.append(torch.stack([bx.view(-1), by.view(-1)], dim=-1))
 
-        pred_boxes = torch.cat(boxes_list, dim=1)  # (B, S * S * B, 4)
-        pred_cls = torch.cat(cls_list, dim=1)  # (B, S * S * B, num_classes)
-        anchor_centers = torch.cat(centers_list, dim=0)  # (S * S * B, 2)
+        pred_boxes = torch.cat(boxes_list, dim=1)
+        pred_cls = torch.cat(cls_list, dim=1)
+        anchor_centers = torch.cat(centers_list, dim=0)
         anchor_strides = torch.full(
             (pred_boxes.shape[1], 1), cell_size, device=device, dtype=torch.float32
         )

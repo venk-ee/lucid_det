@@ -104,9 +104,9 @@ class YOLOXHead(nn.Module):
             cls_feat = self.cls_convs[lvl](stem_feat)
             reg_feat = self.reg_convs[lvl](stem_feat)
 
-            cls_out = self.cls_preds[lvl](cls_feat)  # (B, num_classes, H, W)
-            reg_out = self.reg_preds[lvl](reg_feat)  # (B, 4, H, W)
-            obj_out = self.obj_preds[lvl](reg_feat)  # (B, 1, H, W)
+            cls_out = self.cls_preds[lvl](cls_feat)
+            reg_out = self.reg_preds[lvl](reg_feat)
+            obj_out = self.obj_preds[lvl](reg_feat)
 
             b, _, h, w = cls_out.shape
 

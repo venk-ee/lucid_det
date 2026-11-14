@@ -89,6 +89,10 @@ def train_one_epoch(
     running_loss = 0.0
     num_batches = len(dataloader)
     effective_amp = use_amp and (device.type == "cuda")
+    amp_dtype = (
+        torch.bfloat16 if (effective_amp and torch.cuda.is_bf16_supported()) else torch.float16
+    )
+    effective_scaler = scaler if (effective_amp and amp_dtype == torch.float16) else None
 
     pbar = tqdm(dataloader, desc=f"Epoch [{epoch}/{epochs}]", leave=False)
     for batch in pbar:
@@ -104,7 +108,7 @@ def train_one_epoch(
         else:
             raise TypeError(f"Unsupported batch type: {type(batch)}")
 
-        with torch.amp.autocast(device_type=device.type, enabled=effective_amp):
+        with torch.amp.autocast(device_type=device.type, dtype=amp_dtype, enabled=effective_amp):
             outputs = model(images, training_override=True)
             loss, loss_dict = loss_fn(outputs, batch_targets)
 
@@ -112,15 +116,15 @@ def train_one_epoch(
             print(f"Warning: Non-finite loss detected at step {current_step}: {loss_dict}")
             continue
 
-        if scaler is not None and effective_amp:
-            scaler.scale(loss).backward()
+        if effective_scaler is not None:
+            effective_scaler.scale(loss).backward()
             if clip_max_norm > 0:
-                scaler.unscale_(optimizer)
+                effective_scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=clip_max_norm)
-            scale_before = scaler.get_scale()
-            scaler.step(optimizer)
-            scaler.update()
-            scale_after = scaler.get_scale()
+            scale_before = effective_scaler.get_scale()
+            effective_scaler.step(optimizer)
+            effective_scaler.update()
+            scale_after = effective_scaler.get_scale()
             stepped = scale_after >= scale_before
         else:
             loss.backward()

@@ -35,6 +35,11 @@ class ModelEMA:
         self.tau = tau
         self.updates = 0
 
+    @property
+    def module(self) -> nn.Module:
+        """Shadowed EMA model instance."""
+        return self.ema
+
     @torch.no_grad()
     def update(self, model: nn.Module) -> None:
         """Update EMA parameters given current model weights."""

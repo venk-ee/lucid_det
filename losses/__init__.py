@@ -71,9 +71,7 @@ def build_cls_loss(name: str = "qfl", **kwargs: Any) -> nn.Module:
         **kwargs: Arguments passed to loss constructor.
     """
     if name not in CLS:
-        raise ValueError(
-            f"Unknown classification loss '{name}'. Available: {sorted(list(CLS.keys()))}"
-        )
+        raise ValueError(f"Unknown classification loss '{name}'. Available: {sorted(CLS.keys())}")
     return CLS[name](**kwargs)
 
 
@@ -86,7 +84,7 @@ def build_box_loss(name: str = "ciou", **kwargs: Any) -> nn.Module:
         **kwargs: Arguments passed to loss constructor.
     """
     if name not in BOX:
-        raise ValueError(f"Unknown box loss '{name}'. Available: {sorted(list(BOX.keys()))}")
+        raise ValueError(f"Unknown box loss '{name}'. Available: {sorted(BOX.keys())}")
     return BOX[name](**kwargs)
 
 

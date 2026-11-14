@@ -40,8 +40,7 @@ def multiclass_nms(
     if scores.max() > 1.0 or scores.min() < 0.0:
         scores = scores.sigmoid()
 
-    # Flatten candidates across all classes
-    # (N, C) -> (N * C,)
+    # Best class score and label per candidate box
     max_scores, max_labels = torch.max(scores, dim=-1)
     keep_mask = max_scores > score_thresh
 

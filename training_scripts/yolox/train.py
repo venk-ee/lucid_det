@@ -21,13 +21,12 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from datasets import DetDataset, det_collate
-from engine import COCOEvaluator, build_lr_scheduler
+from engine import COCOEvaluator, ModelEMA, build_lr_scheduler
 from losses import det_loss
 from models import YOLOX
 from runners import save_checkpoint, train_one_epoch, val_one_epoch
 from training_scripts.yolox.config import TrainConfig
 from transforms import build_det_transform
-from utils.ema import ModelEMA
 
 
 def build_optimizer(
@@ -191,7 +190,7 @@ def run_training(cfg: TrainConfig) -> None:
         if val_loader is not None and (
             epoch % cfg.eval.eval_interval == 0 or epoch == cfg.optim.epochs
         ):
-            eval_model = ema.ema if ema is not None else model
+            eval_model = ema.module if ema is not None else model
             val_metrics = val_one_epoch(eval_model, val_loader, device=device, evaluator=evaluator)
             print(f"--> Epoch [{epoch}/{cfg.optim.epochs}] Validation Metrics: {val_metrics}")
             mAP = val_metrics.get("mAP_50_95", val_metrics.get("mAP_50", 0.0))

@@ -49,7 +49,7 @@ class CSPNeXt(nn.Module):
         if arch is not None:
             if arch not in self.PRESETS:
                 raise ValueError(
-                    f"Unknown arch '{arch}', choose from {sorted(list(self.PRESETS.keys()))}"
+                    f"Unknown arch '{arch}', choose from {sorted(self.PRESETS.keys())}"
                 )
             preset_deepen, preset_widen, preset_dw = self.PRESETS[arch]
         else:
@@ -75,7 +75,7 @@ class CSPNeXt(nn.Module):
         )
 
         stages = []
-        for i, (cin0, cout0, n0, add_id, use_spp) in enumerate(self.ARCH_P5):
+        for cin0, cout0, n0, add_id, use_spp in self.ARCH_P5:
             cin = int(cin0 * widen)
             cout = int(cout0 * widen)
             nblocks = max(round(n0 * deepen), 1)

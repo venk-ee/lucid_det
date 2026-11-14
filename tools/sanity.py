@@ -136,10 +136,10 @@ def run_yolov1_sanity(device: torch.device, num_classes: int = 20, S: int = 7, B
     # YOLOv1 Target format: (B, S, S, C + 5)
     dummy_targets = torch.zeros(batch_size, S, S, num_classes + 5, device=device)
     # Put one object at cell (3, 3)
-    dummy_targets[:, 3, 3, 0] = 1.0  # class 0
-    dummy_targets[:, 3, 3, num_classes] = 1.0  # objectness confidence
+    dummy_targets[:, 3, 3, 0] = 1.0
+    dummy_targets[:, 3, 3, num_classes] = 1.0
     dummy_targets[:, 3, 3, num_classes + 1 : num_classes + 5] = torch.tensor(
-        [0.5, 0.5, 0.2, 0.2], device=device
+        [0.5, 0.5, 1.4, 1.4], device=device
     )
 
     loss_fn = YOLOv1Loss(split_size=S, num_boxes=B, num_classes=num_classes)

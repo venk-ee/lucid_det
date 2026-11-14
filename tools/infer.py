@@ -210,9 +210,9 @@ def main() -> None:
     else:
         raise RuntimeError("Model output did not produce NMS detections.")
 
-    pred_boxes = detections["boxes"]  # (K, 4) in letterbox space
-    pred_scores = detections["scores"]  # (K,)
-    pred_labels = detections["labels"]  # (K,)
+    pred_boxes = detections["boxes"]
+    pred_scores = detections["scores"]
+    pred_labels = detections["labels"]
 
     # 5. Coordinate transformation back to original image resolution
     orig_boxes = unletterbox_boxes_xyxy(

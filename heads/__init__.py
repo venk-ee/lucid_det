@@ -49,7 +49,7 @@ def build_head(name: str, **kwargs: Any) -> nn.Module:
         Instantiated head nn.Module.
     """
     if name not in HEADS:
-        raise ValueError(f"Unknown head '{name}'. Available heads: {sorted(list(HEADS.keys()))}")
+        raise ValueError(f"Unknown head '{name}'. Available heads: {sorted(HEADS.keys())}")
     return HEADS[name](**kwargs)
 
 
