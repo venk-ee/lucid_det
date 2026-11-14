@@ -29,41 +29,40 @@ def mini_training_batch():
         os.makedirs(img_dir, exist_ok=True)
 
         cv2.imwrite(
-            os.path.join(img_dir, "train_0.jpg"), np.full((480, 640, 3), 100, dtype=np.uint8)
+            os.path.join(img_dir, "train_0.jpg"), np.full((640, 640, 3), 100, dtype=np.uint8)
         )
         cv2.imwrite(
-            os.path.join(img_dir, "train_1.jpg"), np.full((500, 500, 3), 150, dtype=np.uint8)
+            os.path.join(img_dir, "train_1.jpg"), np.full((640, 640, 3), 150, dtype=np.uint8)
         )
 
         coco_data = {
             "images": [
-                {"id": 1, "file_name": "train_0.jpg", "height": 480, "width": 640},
-                {"id": 2, "file_name": "train_1.jpg", "height": 500, "width": 500},
+                {"id": 1, "file_name": "train_0.jpg", "height": 640, "width": 640},
+                {"id": 2, "file_name": "train_1.jpg", "height": 640, "width": 640},
             ],
             "categories": [
                 {"id": 1, "name": "cat"},
                 {"id": 2, "name": "dog"},
             ],
             "annotations": [
-                {
-                    "id": 1,
-                    "image_id": 1,
-                    "category_id": 1,
-                    "bbox": [50, 50, 100, 100],
-                    "iscrowd": 0,
-                },
-                {
-                    "id": 2,
-                    "image_id": 1,
-                    "category_id": 2,
-                    "bbox": [200, 200, 80, 80],
-                    "iscrowd": 0,
-                },
+                # Image 1 multi-scale objects (tiny P3/stride 8, medium P4/stride 16, large P5/stride 32)
+                {"id": 1, "image_id": 1, "category_id": 1, "bbox": [16, 16, 8, 8], "iscrowd": 0},
+                {"id": 2, "image_id": 1, "category_id": 2, "bbox": [80, 80, 24, 24], "iscrowd": 0},
                 {
                     "id": 3,
-                    "image_id": 2,
+                    "image_id": 1,
                     "category_id": 1,
-                    "bbox": [100, 120, 150, 150],
+                    "bbox": [200, 200, 200, 200],
+                    "iscrowd": 0,
+                },
+                # Image 2 multi-scale objects
+                {"id": 4, "image_id": 2, "category_id": 2, "bbox": [24, 24, 8, 8], "iscrowd": 0},
+                {"id": 5, "image_id": 2, "category_id": 1, "bbox": [96, 96, 24, 24], "iscrowd": 0},
+                {
+                    "id": 6,
+                    "image_id": 2,
+                    "category_id": 2,
+                    "bbox": [220, 220, 200, 200],
                     "iscrowd": 0,
                 },
             ],
@@ -73,7 +72,7 @@ def mini_training_batch():
         with open(ann_path, "w") as f:
             json.dump(coco_data, f)
 
-        transform = build_det_transform(img_size=640, is_train=True)
+        transform = build_det_transform(img_size=640, is_train=False)
         dataset = DetDataset(root=img_dir, ann_file=ann_path, transform=transform, num_classes=2)
         loader = DataLoader(dataset, batch_size=2, shuffle=False, collate_fn=det_collate)
         return next(iter(loader))

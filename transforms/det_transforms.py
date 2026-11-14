@@ -228,6 +228,8 @@ class DetectionTransform:
         img_tensor = res["image"]
         if isinstance(img_tensor, np.ndarray):
             img_tensor = torch.from_numpy(img_tensor).permute(2, 0, 1).float() / 255.0
+        elif isinstance(img_tensor, torch.Tensor):
+            img_tensor = img_tensor.contiguous()
 
         if gt_boxes.numel() > 0:
             h, w = img_tensor.shape[-2:]
