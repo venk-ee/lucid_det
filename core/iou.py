@@ -1,9 +1,10 @@
 """
-Bounding box IoU, GIoU, and CIoU geometric computations (Pure PyTorch).
+Bounding box IoU, GIoU, and CIoU geometric computations.
 """
 
 import math
 from typing import Optional
+
 import torch
 
 
@@ -17,9 +18,9 @@ def box_area(boxes: torch.Tensor) -> torch.Tensor:
     Returns:
         area: (...,) tensor.
     """
-    return (boxes[..., 2] - boxes[..., 0]).clamp(min=0) * (
-        boxes[..., 3] - boxes[..., 1]
-    ).clamp(min=0)
+    return (boxes[..., 2] - boxes[..., 0]).clamp(min=0) * (boxes[..., 3] - boxes[..., 1]).clamp(
+        min=0
+    )
 
 
 def box_iou(
@@ -75,9 +76,7 @@ def box_giou(
         giou: (N,) if elementwise else (N, M)
     """
     if elementwise is None:
-        do_elementwise = (
-            boxes1.shape == boxes2.shape and boxes1.dim() == 2 and boxes1.shape[1] == 4
-        )
+        do_elementwise = boxes1.shape == boxes2.shape and boxes1.dim() == 2 and boxes1.shape[1] == 4
     else:
         do_elementwise = elementwise
 

@@ -1,9 +1,10 @@
 """
-Vision augmentations and preprocessing transforms for LucidDet.
+Vision augmentations and preprocessing transforms.
 Provides Letterbox, Albumentations pipeline builder, and Mosaic / MixUp primitives.
 """
 
-from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
+from typing import Any, List, Sequence, Tuple, Union
+
 import cv2
 import numpy as np
 import torch
@@ -11,11 +12,10 @@ import torch
 try:
     import albumentations as A
     from albumentations.pytorch import ToTensorV2
+
     HAS_ALBUMENTATIONS = True
 except ImportError:
     HAS_ALBUMENTATIONS = False
-
-from core.box_coder import box_xywh_to_xyxy
 
 
 def letterbox_image(
@@ -76,8 +76,7 @@ def letterbox_boxes_coco(
 ) -> List[List[float]]:
     """Transform COCO [x, y, w, h] boxes according to letterbox scale and padding."""
     return [
-        [x * scale + pad_left, y * scale + pad_top, w * scale, h * scale]
-        for x, y, w, h in boxes
+        [x * scale + pad_left, y * scale + pad_top, w * scale, h * scale] for x, y, w, h in boxes
     ]
 
 
@@ -157,7 +156,7 @@ def mosaic_augment(
         pad_x = x1a - x1b
         pad_y = y1a - y1b
 
-        for b, l in zip(boxes, labels):
+        for b, lbl in zip(boxes, labels):
             x, y, bw, bh = b
             nx = x + pad_x
             ny = y + pad_y
@@ -168,7 +167,7 @@ def mosaic_augment(
             ny2 = min(ny + bh, y2a)
             if nx2 > nx1 + 2 and ny2 > ny1 + 2:
                 mosaic_boxes.append([nx1, ny1, nx2 - nx1, ny2 - ny1])
-                mosaic_labels.append(l)
+                mosaic_labels.append(lbl)
 
     return mosaic_img, mosaic_boxes, mosaic_labels
 
@@ -183,7 +182,9 @@ def mixup_augment(
     alpha: float = 0.5,
 ) -> Tuple[np.ndarray, List[List[float]], List[int]]:
     """Alpha-blend two images and combine their bounding boxes."""
-    mixed_img = (img1.astype(np.float32) * alpha + img2.astype(np.float32) * (1.0 - alpha)).astype(np.uint8)
+    mixed_img = (img1.astype(np.float32) * alpha + img2.astype(np.float32) * (1.0 - alpha)).astype(
+        np.uint8
+    )
     mixed_boxes = list(boxes1) + list(boxes2)
     mixed_labels = list(labels1) + list(labels2)
     return mixed_img, mixed_boxes, mixed_labels
@@ -206,7 +207,7 @@ class DetectionTransform:
 
         if len(boxes_xyxy) > 0:
             gt_boxes = torch.tensor(boxes_xyxy, dtype=torch.float32).reshape(-1, 4)
-            gt_labels = torch.as_tensor([int(l) for l in res["labels"]], dtype=torch.int64)
+            gt_labels = torch.as_tensor([int(lbl) for lbl in res["labels"]], dtype=torch.int64)
         else:
             gt_boxes = torch.empty((0, 4), dtype=torch.float32)
             gt_labels = torch.empty((0,), dtype=torch.int64)
@@ -235,29 +236,33 @@ def build_det_transform(
 
     transforms_list = []
     if is_train:
-        transforms_list.extend([
-            A.HorizontalFlip(p=hflip_prob),
-            A.Affine(
-                scale=(0.8, 1.2),
-                translate_percent=(-0.05, 0.05),
+        transforms_list.extend(
+            [
+                A.HorizontalFlip(p=hflip_prob),
+                A.Affine(
+                    scale=(0.8, 1.2),
+                    translate_percent=(-0.05, 0.05),
+                    border_mode=0,
+                    fill=(pad_val, pad_val, pad_val),
+                    p=affine_prob,
+                ),
+                A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, p=0.5),
+            ]
+        )
+
+    transforms_list.extend(
+        [
+            A.LongestMaxSize(max_size=max(h, w)),
+            A.PadIfNeeded(
+                min_height=h,
+                min_width=w,
                 border_mode=0,
                 fill=(pad_val, pad_val, pad_val),
-                p=affine_prob,
             ),
-            A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, p=0.5),
-        ])
-
-    transforms_list.extend([
-        A.LongestMaxSize(max_size=max(h, w)),
-        A.PadIfNeeded(
-            min_height=h,
-            min_width=w,
-            border_mode=0,
-            fill=(pad_val, pad_val, pad_val),
-        ),
-        A.Normalize(mean=mean, std=std),
-        ToTensorV2(),
-    ])
+            A.Normalize(mean=mean, std=std),
+            ToTensorV2(),
+        ]
+    )
 
     pipeline = A.Compose(
         transforms_list,

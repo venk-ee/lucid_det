@@ -1,11 +1,12 @@
 """
-CSPNeXtPAFPN Neck (Pure PyTorch) for LucidDet.
+CSPNeXtPAFPN Neck
 Multi-scale Path Aggregation Feature Pyramid Network with CSP blocks.
 """
 
-from typing import List, Sequence, Tuple
+from collections.abc import Sequence
+
 import torch
-import torch.nn as nn
+from torch import nn
 
 from backbones.common import ConvModule, CSPLayer, DepthwiseSeparableConv
 from necks import register_neck
@@ -13,7 +14,6 @@ from necks import register_neck
 
 @register_neck("cspnext_pafpn")
 class CSPNeXtPAFPN(nn.Module):
-
     """
     Path Aggregation FPN with CSPNeXt blocks.
 
@@ -38,7 +38,9 @@ class CSPNeXtPAFPN(nn.Module):
         self.in_channels = list(in_channels)
         self.out_channels = out_channels
 
-        def make_conv(cin: int, cout: int, k: int = 3, s: int = 1, p: int = None) -> nn.Module:
+        def make_conv(
+            cin: int, cout: int, k: int = 3, s: int = 1, p: int | None = None
+        ) -> nn.Module:
             if use_depthwise:
                 if k == 1 or s != 1:
                     return ConvModule(cin, cout, k, s, p)
@@ -89,7 +91,7 @@ class CSPNeXtPAFPN(nn.Module):
             [make_conv(in_channels[i], out_channels, 3) for i in range(n)]
         )
 
-    def forward(self, inputs: Sequence[torch.Tensor]) -> Tuple[torch.Tensor, ...]:
+    def forward(self, inputs: Sequence[torch.Tensor]) -> tuple[torch.Tensor, ...]:
         assert len(inputs) == len(self.in_channels), (
             f"Expected {len(self.in_channels)} inputs, got {len(inputs)}"
         )

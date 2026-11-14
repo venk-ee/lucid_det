@@ -1,5 +1,5 @@
 """
-Backbone registry and builder for LucidDet.
+Backbone registry and builder.
 
 Contract:
     forward(x) -> List[Tensor] or Tuple[Tensor, ...] representing [P3, P4, P5] feature maps.
@@ -9,6 +9,7 @@ Contract:
 """
 
 from typing import Any, Callable, Dict, Optional, Type, Union
+
 import torch.nn as nn
 
 BACKBONES: Dict[str, Type[nn.Module]] = {}
@@ -58,11 +59,8 @@ def build_backbone(name: str = "cspnext", **kwargs: Any) -> nn.Module:
 
 
 # Import concrete implementations to trigger registration
-from backbones.cspnext import CSPNeXt
 from backbones.cspdarknet import CSPDarknet
+from backbones.cspnext import CSPNeXt
 from backbones.darknet24 import Darknet24
 
 __all__ = ["BACKBONES", "CSPNeXt", "CSPDarknet", "Darknet24", "register_backbone", "build_backbone"]
-
-
-

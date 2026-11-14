@@ -1,9 +1,10 @@
 """
-Darknet-24 backbone (Pure PyTorch) for LucidDet.
+Darknet-24 backbone.
 Faithful to YOLOv1 architecture specification (24 conv layers with LeakyReLU).
 """
 
-from typing import List, Sequence, Tuple
+from typing import List, Tuple
+
 import torch
 import torch.nn as nn
 
@@ -84,8 +85,24 @@ class Darknet24(nn.Module):
             elif isinstance(item, list):
                 conv1, conv2, repeats = item
                 for _ in range(repeats):
-                    layers.append(CNNBlock(curr_in, conv1[1], kernel_size=conv1[0], stride=conv1[2], padding=conv1[3]))
-                    layers.append(CNNBlock(conv1[1], conv2[1], kernel_size=conv2[0], stride=conv2[2], padding=conv2[3]))
+                    layers.append(
+                        CNNBlock(
+                            curr_in,
+                            conv1[1],
+                            kernel_size=conv1[0],
+                            stride=conv1[2],
+                            padding=conv1[3],
+                        )
+                    )
+                    layers.append(
+                        CNNBlock(
+                            conv1[1],
+                            conv2[1],
+                            kernel_size=conv2[0],
+                            stride=conv2[2],
+                            padding=conv2[3],
+                        )
+                    )
                     curr_in = conv2[1]
 
         self.net = nn.Sequential(*layers)

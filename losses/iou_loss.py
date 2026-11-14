@@ -1,13 +1,12 @@
 """
-Bounding box IoU regression losses (Pure PyTorch) for LucidDet.
+Bounding box IoU regression losses.
 Houses GIoULoss, CIoULoss, and standard IoULoss.
 """
 
-from typing import Optional
 import torch
 import torch.nn as nn
 
-from core.iou import box_ciou, box_giou, box_iou
+from core.iou import box_ciou, box_giou
 from losses import register_box_loss
 
 

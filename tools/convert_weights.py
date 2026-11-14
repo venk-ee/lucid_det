@@ -1,5 +1,5 @@
 """
-Decoupled, dataclass-based model weight converter CLI for LucidDet.
+Decoupled, dataclass-based model weight converter CLI.
 Converts official pretrained checkpoints (OpenMMLab, Megvii, Darknet) into clean,
 pure-PyTorch LucidDet checkpoints with embedded metadata envelopes and guardrail verification.
 
@@ -16,9 +16,9 @@ import pickle
 import sys
 import time
 import urllib.request
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
+
 import torch
-import torch.nn as nn
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -41,6 +41,7 @@ def safe_load_checkpoint(path: str, device: torch.device = torch.device("cpu")) 
     Safely load a PyTorch checkpoint from disk, mocking mmengine/mmcv classes
     to allow reading OpenMMLab pickles without mmengine dependencies.
     """
+
     class SafeUnpickler(pickle.Unpickler):
         def find_class(self, module: str, name: str) -> Any:
             if any(module.startswith(pkg) for pkg in ("mmengine", "mmcv", "mmdet", "mmyolo")):
@@ -60,10 +61,14 @@ def safe_load_checkpoint(path: str, device: torch.device = torch.device("cpu")) 
         return torch.load(path, map_location=device, weights_only=False)
     except Exception:
         # Retry with mock safe pickle module
-        return torch.load(path, map_location=device, pickle_module=SafePickleModule, weights_only=False)
+        return torch.load(
+            path, map_location=device, pickle_module=SafePickleModule, weights_only=False
+        )
 
 
-def resolve_weight_source(preset: ModelWeightPreset, custom_path: Optional[str], download_dir: str) -> str:
+def resolve_weight_source(
+    preset: ModelWeightPreset, custom_path: Optional[str], download_dir: str
+) -> str:
     """
     Resolve weights source file path.
     Checks:
@@ -126,7 +131,9 @@ def convert_and_verify_preset(
         # 3. Guardrail Verification: Build model and test strict loading
         builder_fn = getattr(zoo, preset.builder_fn, None)
         if builder_fn is None:
-            raise AttributeError(f"Model builder function '{preset.builder_fn}' not found in models.zoo")
+            raise AttributeError(
+                f"Model builder function '{preset.builder_fn}' not found in models.zoo"
+            )
 
         if preset.family == "yolov1":
             model = builder_fn(num_classes=preset.num_classes)
@@ -197,12 +204,20 @@ def convert_and_verify_preset(
 def print_presets_table(presets: List[ModelWeightPreset]) -> None:
     """Print registered presets in a clean table format."""
     print("=" * 90)
-    print(f"{'PRESET':<16} {'FAMILY':<10} {'ARCH':<8} {'CLASSES':<8} {'INPUT':<10} {'CACHE / URL':<35}")
+    print(
+        f"{'PRESET':<16} {'FAMILY':<10} {'ARCH':<8} {'CLASSES':<8} {'INPUT':<10} {'CACHE / URL':<35}"
+    )
     print("=" * 90)
     for p in presets:
-        cache_status = "Available" if any(os.path.isfile(h) for h in p.cache_hints) else ("URL" if p.url else "None")
+        cache_status = (
+            "Available"
+            if any(os.path.isfile(h) for h in p.cache_hints)
+            else ("URL" if p.url else "None")
+        )
         inp_str = f"{p.input_size[0]}x{p.input_size[1]}"
-        print(f"{p.name:<16} {p.family:<10} {p.arch:<8} {p.num_classes:<8} {inp_str:<10} {cache_status:<35}")
+        print(
+            f"{p.name:<16} {p.family:<10} {p.arch:<8} {p.num_classes:<8} {inp_str:<10} {cache_status:<35}"
+        )
     print("=" * 90)
 
 
@@ -211,7 +226,9 @@ def print_reports_summary(reports: List[ConversionReport]) -> None:
     print("\n" + "=" * 90)
     print("WEIGHT CONVERSION SUMMARY REPORT")
     print("=" * 90)
-    print(f"{'PRESET':<16} {'CONVERTED':<12} {'MISSING':<10} {'UNEXPECTED':<12} {'FORWARD':<10} {'TIME (s)':<10} {'STATUS':<8}")
+    print(
+        f"{'PRESET':<16} {'CONVERTED':<12} {'MISSING':<10} {'UNEXPECTED':<12} {'FORWARD':<10} {'TIME (s)':<10} {'STATUS':<8}"
+    )
     print("-" * 90)
     for r in reports:
         status = "PASS" if r.is_success else "FAIL"
@@ -225,11 +242,19 @@ def print_reports_summary(reports: List[ConversionReport]) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="LucidDet Weight Converter CLI")
-    parser.add_argument("--list", action="store_true", help="List all registered model weight presets")
-    parser.add_argument("--preset", type=str, default=None, help="Preset name to convert (e.g. rtmdet_s)")
+    parser.add_argument(
+        "--list", action="store_true", help="List all registered model weight presets"
+    )
+    parser.add_argument(
+        "--preset", type=str, default=None, help="Preset name to convert (e.g. rtmdet_s)"
+    )
     parser.add_argument("--all", action="store_true", help="Convert all available presets")
-    parser.add_argument("--output-dir", type=str, default="checkpoints", help="Output directory for checkpoints")
-    parser.add_argument("--weights", type=str, default=None, help="Optional custom weights file override")
+    parser.add_argument(
+        "--output-dir", type=str, default="checkpoints", help="Output directory for checkpoints"
+    )
+    parser.add_argument(
+        "--weights", type=str, default=None, help="Optional custom weights file override"
+    )
     parser.add_argument(
         "--device",
         type=str,

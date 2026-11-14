@@ -1,12 +1,12 @@
 """
-RTMDet weight converter plugin and model presets for LucidDet.
+RTMDet weight converter plugin and model presets.
 Handles OpenMMLab / MMYOLO checkpoints with safe unpickling,
 data_preprocessor removal, and bbox_head/depthwise/pointwise key remapping.
 """
 
-import io
 import pickle
 from typing import Any, Dict
+
 import torch
 
 from weights.base import ModelWeightPreset
@@ -15,6 +15,7 @@ from weights.registry import register_converter, register_preset
 
 def safe_unpickle_load(f: Any) -> Any:
     """Safe unpickler mock that ignores missing mmcv/mmengine modules in pickles."""
+
     class SafeUnpickler(pickle.Unpickler):
         def find_class(self, module: str, name: str) -> Any:
             if any(module.startswith(pkg) for pkg in ("mmengine", "mmcv", "mmdet", "mmyolo")):
@@ -84,8 +85,7 @@ register_preset(
         builder_fn="build_rtmdet",
         num_classes=80,
         url="https://download.openmmlab.com/mmyolo/v0/rtmdet/rtmdet_s_syncbn_fast_8xb32-300e_coco/rtmdet_s_syncbn_fast_8xb32-300e_coco_20221230_182329-888a1e51.pth",
-        cache_hints=(
-        ),
+        cache_hints=(),
         color_space="RGB",
         mean=(123.675, 116.28, 103.53),
         std=(58.395, 57.12, 57.375),
@@ -102,8 +102,7 @@ register_preset(
         builder_fn="build_rtmdet",
         num_classes=80,
         url="https://download.openmmlab.com/mmyolo/v0/rtmdet/rtmdet_tiny_syncbn_fast_8xb32-300e_coco/rtmdet_tiny_syncbn_fast_8xb32-300e_coco_20230102_140117-db32cd39.pth",
-        cache_hints=(
-        ),
+        cache_hints=(),
         color_space="RGB",
         mean=(123.675, 116.28, 103.53),
         std=(58.395, 57.12, 57.375),

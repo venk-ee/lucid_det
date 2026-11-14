@@ -1,10 +1,10 @@
 """
-Learning rate scheduling for LucidDet.
+Learning rate scheduling.
 Implements Linear Warmup followed by Cosine Annealing.
 """
 
 import math
-from typing import Optional
+
 import torch
 from torch.optim.lr_scheduler import LambdaLR
 
@@ -15,6 +15,7 @@ def get_warmup_cosine_lambda(
     min_lr_ratio: float = 0.05,
 ) -> callable:
     """Returns a lambda multiplier for Linear Warmup + Cosine Annealing."""
+
     def lr_lambda(step: int) -> float:
         if step < warmup_steps:
             return float(step) / float(max(1, warmup_steps))

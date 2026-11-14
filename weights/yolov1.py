@@ -1,9 +1,10 @@
 """
-YOLOv1 weight converter plugin and model presets for LucidDet.
+YOLOv1 weight converter plugin and model presets.
 Handles legacy YOLOv1 checkpoints with darknet -> backbone.net and fcs -> head.fcs remapping.
 """
 
 from typing import Any, Dict
+
 import torch
 
 from weights.base import ModelWeightPreset
@@ -47,12 +48,12 @@ def convert_yolov1(raw_sd: Any, preset: ModelWeightPreset) -> Dict[str, torch.Te
         new_k = k
         # Remap legacy darknet backbone
         if new_k.startswith("darknet."):
-            new_k = "backbone.net." + new_k[len("darknet."):]
+            new_k = "backbone.net." + new_k[len("darknet.") :]
         # Remap batchnorm name
         new_k = new_k.replace(".batchnorm.", ".bn.")
         # Remap fcs head
         if new_k.startswith("fcs."):
-            new_k = "head.fcs." + new_k[len("fcs."):]
+            new_k = "head.fcs." + new_k[len("fcs.") :]
 
         clean_sd[new_k] = v
 

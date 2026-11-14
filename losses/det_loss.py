@@ -1,10 +1,11 @@
 """
-Unified detection loss dispatcher for LucidDet (Pure PyTorch).
+Unified detection loss dispatcher.
 Integrates target assignment (SimOTA), classification loss (QFL),
 and bounding box regression loss (GIoU/CIoU).
 """
 
 from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

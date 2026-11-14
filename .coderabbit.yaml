@@ -1,9 +1,8 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 language: "en-US"
 tone_instructions: >
-  Act as a Staff Computer Vision & PyTorch Infrastructure Engineer.
-  Be direct, concise, and prioritize correctness, memory safety, and high-throughput CUDA execution.
-  Filter out superficial stylistic nitpicks (like minor formatting) and focus on correctness and design contracts.
+  Act as a Staff Computer Vision & PyTorch Engineer. Be direct and concise.
+  Prioritize correctness, CUDA memory safety, and modular contracts over stylistic nitpicks.
 early_access: false
 
 reviews:
@@ -14,34 +13,34 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
+  path_filters:
+    - "!uv.lock"
+    - "!weights/**"
+    - "!**/*.pth"
+    - "!**/*.pt"
+    - "!**/*.onnx"
+    - "!docs/**"
+  path_instructions:
+    - path: "**/*"
+      instructions: |
+        Repository Context:
+        LucidDet is a pure PyTorch modular object detection library (unifying RTMDet, YOLOX, YOLOv1) with ZERO OpenMMLab/MMCV runtime dependencies.
 
-  instructions: |
-    Repository Context:
-    LucidDet is a pure PyTorch modular object detection library (unifying RTMDet, YOLOX, YOLOv1) with ZERO OpenMMLab/MMCV runtime dependencies.
+        Review rigorously against these strict engineering standards:
 
-    Review rigorously against these strict engineering standards:
+        1. ZERO MMCV/OpenMMLab LEAKAGE:
+           - Flag any imports of `mmcv`, `mmdet`, or `mmengine`. Everything must be native PyTorch.
 
-    1. ZERO MMCV/OpenMMLab LEAKAGE:
-       - Flag any imports of `mmcv`, `mmdet`, or `mmengine`. Everything must be native PyTorch.
+        2. BOUNDING BOX CONVENTIONS:
+           - Verify box formats: clearly check if code expects `xyxy`, `xywh`, or normalized vs absolute pixel values. Flag any ambiguity or unasserted conversions.
 
-    2. BOUNDING BOX CONVENTIONS:
-       - Verify box formats: clearly check if code expects `xyxy`, `xywh`, or normalized vs absolute pixel values. Flag any ambiguity or unasserted conversions.
+        3. PYTORCH GPU MEMORY & GRAPH HYGIENE:
+           - Check for memory leaks: logging/metric tensors must use `.detach()` or `.item()` so the autograd graph is not held in VRAM.
+           - Ensure `torch.no_grad()` or `@torch.inference_mode()` is used in validation/eval passes.
+           - Ensure device consistency: avoid unintended CPU-GPU synchronizations or missing `.to(device)`.
 
-    3. PYTORCH GPU MEMORY & GRAPH HYGIENE:
-       - Check for memory leaks: logging/metric tensors must use `.detach()` or `.item()` so the autograd graph is not held in VRAM.
-       - Ensure `torch.no_grad()` or `@torch.inference_mode()` is used in validation/eval passes.
-       - Ensure device consistency: avoid unintended CPU-GPU synchronizations or missing `.to(device)`.
+        4. VECTORIZATION & SIMD PERFORMANCE:
+           - Flag Python loops over bounding boxes, anchors, or batches that can be vectorized using PyTorch broadcasting.
 
-    4. VECTORIZATION & SIMD PERFORMANCE:
-       - Flag Python loops over bounding boxes, anchors, or batches that can be vectorized using PyTorch broadcasting.
-
-    5. ARCHITECTURAL BOUNDARIES:
-       - Enforce modularity: Backbones must only emit feature pyramid maps (P3, P4, P5). Necks aggregate them. Heads compute classification and regression outputs.
-
-path_filters:
-  - "!uv.lock"
-  - "!weights/**"
-  - "!**/*.pth"
-  - "!**/*.pt"
-  - "!**/*.onnx"
-  - "!docs/**"
+        5. ARCHITECTURAL BOUNDARIES:
+           - Enforce modularity: Backbones must only emit feature pyramid maps (P3, P4, P5). Necks aggregate them. Heads compute classification and regression outputs.

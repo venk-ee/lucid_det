@@ -4,6 +4,7 @@ Model prediction outputs schema and container classes (dataclass contract).
 
 from dataclasses import dataclass, fields
 from typing import Any, Dict, List, Optional, Tuple
+
 import torch
 
 
@@ -39,4 +40,8 @@ class DetectionOutput:
         return [getattr(self, f.name) for f in fields(self) if getattr(self, f.name) is not None]
 
     def items(self) -> List[Tuple[str, Any]]:
-        return [(f.name, getattr(self, f.name)) for f in fields(self) if getattr(self, f.name) is not None]
+        return [
+            (f.name, getattr(self, f.name))
+            for f in fields(self)
+            if getattr(self, f.name) is not None
+        ]

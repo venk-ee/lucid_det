@@ -4,7 +4,8 @@ Structured following clean configuration patterns.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Tuple
+
 import torch
 
 

@@ -1,9 +1,10 @@
 """
-Identity Neck (Pure PyTorch) for LucidDet.
+Identity Neck.
 Passthrough module for single-scale architectures like YOLOv1.
 """
 
 from typing import Any, Sequence, Tuple
+
 import torch
 import torch.nn as nn
 

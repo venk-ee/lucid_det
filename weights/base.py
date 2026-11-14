@@ -1,11 +1,10 @@
 """
-Base dataclasses and schemas for LucidDet weight conversion system.
+Base dataclasses and schemas weight conversion system.
 Provides immutable model presets, checkpoint envelope metadata, and conversion report schemas.
 """
 
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timezone
-import os
 from typing import Any, Dict, List, Optional, Tuple
 
 

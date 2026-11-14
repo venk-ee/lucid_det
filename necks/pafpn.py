@@ -1,9 +1,10 @@
 """
-Standard YOLOX PAFPN Neck (Pure PyTorch) for LucidDet.
+Standard YOLOX PAFPN Neck.
 Bidirectional Feature Pyramid Network with standard CSPDarknet blocks.
 """
 
-from typing import Any, List, Optional, Sequence, Tuple, Union
+from typing import Any, Optional, Sequence, Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -31,7 +32,9 @@ class YOLOXPAFPN(nn.Module):
         num_csp_blocks: int = 1,
     ) -> None:
         super().__init__()
-        assert len(in_channels) == 3, f"YOLOX PAFPN expects 3 levels [P3, P4, P5], got {len(in_channels)}"
+        assert len(in_channels) == 3, (
+            f"YOLOX PAFPN expects 3 levels [P3, P4, P5], got {len(in_channels)}"
+        )
         self.in_channels = list(in_channels)
         c3, c4, c5 = in_channels
         self.out_channels = tuple(in_channels)
@@ -84,7 +87,9 @@ class YOLOXPAFPN(nn.Module):
             channel_attention=False,
         )
 
-    def forward(self, feats: Sequence[torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(
+        self, feats: Sequence[torch.Tensor]
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         p3, p4, p5 = feats
 
         # Top-down

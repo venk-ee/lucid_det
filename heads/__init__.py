@@ -1,11 +1,12 @@
 """
-Head registry and builder for LucidDet.
+Head registry and builder.
 
 Contract:
     forward(feats: Sequence[Tensor]) -> Dict[str, Tensor] or Tuple[Tensor, ...]
 """
 
 from typing import Any, Callable, Dict, Optional, Type, Union
+
 import torch.nn as nn
 
 HEADS: Dict[str, Type[nn.Module]] = {}
@@ -48,18 +49,13 @@ def build_head(name: str, **kwargs: Any) -> nn.Module:
         Instantiated head nn.Module.
     """
     if name not in HEADS:
-        raise ValueError(
-            f"Unknown head '{name}'. Available heads: {sorted(list(HEADS.keys()))}"
-        )
+        raise ValueError(f"Unknown head '{name}'. Available heads: {sorted(list(HEADS.keys()))}")
     return HEADS[name](**kwargs)
 
 
 # Import concrete implementations to trigger registration
 from heads.sep_bn_head import SepBNHead
-from heads.yolox_head import YOLOXHead
 from heads.yolov1_head import YOLOv1Head
+from heads.yolox_head import YOLOXHead
 
 __all__ = ["HEADS", "SepBNHead", "YOLOXHead", "YOLOv1Head", "register_head", "build_head"]
-
-
-

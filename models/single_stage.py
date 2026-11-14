@@ -1,11 +1,12 @@
 """
-Single-Stage Detector base architecture (Pure PyTorch).
+Single-Stage Detector base architecture.
 Composes swappable Backbone -> Neck -> Head with support for both training outputs
 and inference multi-class NMS decoding.
 """
 
 from collections.abc import Mapping
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional
+
 import torch
 import torch.nn as nn
 

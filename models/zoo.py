@@ -3,12 +3,9 @@ Pre-wired model builders and model zoo factory functions.
 Provides factory builders and class constructors for RTMDet, YOLOX, and YOLOv1.
 """
 
-from typing import Any, Optional, Sequence
-import torch.nn as nn
+from typing import Any, Optional
 
-from models.outputs import DetectionOutput
 from models.rtmdet import RTMDet
-from models.single_stage import SingleStageDetector
 from models.yolov1 import YOLOv1
 from models.yolox import YOLOX
 

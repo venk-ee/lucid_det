@@ -1,14 +1,13 @@
 """
-Lightweight command-line trainer for LucidDet.
-Pure PyTorch loop with ModelEMA, parameter-group weight decay separation,
+Lightweight command-line trainer.
+Training loop with ModelEMA, parameter-group weight decay separation,
 AMP mixed-precision, and COCO checkpointing.
 """
 
 import argparse
-import math
 import os
 import sys
-from typing import Any, Dict
+
 import torch
 from torch.utils.data import DataLoader
 
@@ -18,7 +17,8 @@ if ROOT not in sys.path:
 
 
 from datasets import DetDataset, build_det_transform, det_collate
-from engine import COCOEvaluator, ModelEMA, build_lr_scheduler
+
+from engine import ModelEMA, build_lr_scheduler
 from losses import YOLOv1Loss, det_loss
 from models import build_rtmdet, build_yolov1, build_yolox
 
@@ -50,25 +50,31 @@ def main() -> None:
     parser.add_argument("--lr", type=float, default=2e-3, help="Base learning rate")
     parser.add_argument("--img-size", type=int, default=640, help="Image input resolution")
     parser.add_argument("--num-classes", type=int, default=80, help="Number of foreground classes")
-    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu"
+    )
     parser.add_argument("--amp", action="store_true", default=True, help="Use AMP mixed precision")
     parser.add_argument("--no-amp", dest="amp", action="store_false")
     parser.add_argument("--workers", type=int, default=2, help="DataLoader workers")
-    parser.add_argument("--out", type=str, default="work_dirs/exp", help="Checkpoint output directory")
+    parser.add_argument(
+        "--out", type=str, default="work_dirs/exp", help="Checkpoint output directory"
+    )
     parser.add_argument("--log-interval", type=int, default=5, help="Step logging cadence")
     args = parser.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
     device = torch.device(args.device)
 
-    print(f"==================================================")
+    print("==================================================")
     print(f"LucidDet Training: {args.model} | Device: {device} | Epochs: {args.epochs}")
     print(f"Data: {args.root} ({args.ann})")
-    print(f"==================================================")
+    print("==================================================")
 
     # 1. Dataset & DataLoader
     transform = build_det_transform(img_size=args.img_size, is_train=True)
-    dataset = DetDataset(root=args.root, ann_file=args.ann, transform=transform, num_classes=args.num_classes)
+    dataset = DetDataset(
+        root=args.root, ann_file=args.ann, transform=transform, num_classes=args.num_classes
+    )
     dataloader = DataLoader(
         dataset,
         batch_size=args.batch,
@@ -108,7 +114,11 @@ def main() -> None:
     use_amp = args.amp and (device.type == "cuda")
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
 
-    yolov1_loss_fn = YOLOv1Loss(split_size=7, num_boxes=2, num_classes=args.num_classes) if "yolov1" in args.model else None
+    yolov1_loss_fn = (
+        YOLOv1Loss(split_size=7, num_boxes=2, num_classes=args.num_classes)
+        if "yolov1" in args.model
+        else None
+    )
 
     # 3. Training Loop
     step = 0
@@ -130,24 +140,29 @@ def main() -> None:
                 if yolov1_loss_fn is not None:
                     # Construct dummy cell target matrix from boxes
                     S = 7
-                    targets_matrix = torch.zeros(len(images), S, S, args.num_classes + 5, device=device)
+                    targets_matrix = torch.zeros(
+                        len(images), S, S, args.num_classes + 5, device=device
+                    )
                     for b_i in range(len(images)):
                         gt_b = batch["gt_boxes"][b_i]
                         gt_l = batch["gt_labels"][b_i]
                         for box, lbl in zip(gt_b, gt_l):
                             x1, y1, x2, y2 = box.tolist()
-                            cx, cy = (x1 + x2) / (2.0 * args.img_size), (y1 + y2) / (2.0 * args.img_size)
+                            cx, cy = (
+                                (x1 + x2) / (2.0 * args.img_size),
+                                (y1 + y2) / (2.0 * args.img_size),
+                            )
                             w, h = (x2 - x1) / args.img_size, (y2 - y1) / args.img_size
                             ci, cj = min(int(cy * S), S - 1), min(int(cx * S), S - 1)
                             targets_matrix[b_i, ci, cj, int(lbl.item())] = 1.0
                             targets_matrix[b_i, ci, cj, args.num_classes] = 1.0
-                            targets_matrix[b_i, ci, cj, args.num_classes + 1 : args.num_classes + 5] = torch.tensor(
-                                [cx * S - cj, cy * S - ci, w, h], device=device
-                            )
+                            targets_matrix[
+                                b_i, ci, cj, args.num_classes + 1 : args.num_classes + 5
+                            ] = torch.tensor([cx * S - cj, cy * S - ci, w, h], device=device)
                     loss, loss_dict = yolov1_loss_fn(outputs, targets_matrix)
                 else:
                     gt_boxes = [b.to(device, non_blocking=True) for b in batch["gt_boxes"]]
-                    gt_labels = [l.to(device, non_blocking=True) for l in batch["gt_labels"]]
+                    gt_labels = [lbl.to(device, non_blocking=True) for lbl in batch["gt_labels"]]
                     loss, loss_dict = det_loss(
                         model_out=outputs,
                         gt_boxes_list=gt_boxes,
@@ -181,7 +196,7 @@ def main() -> None:
             if step % args.log_interval == 0 or batch_idx == num_batches - 1:
                 cur_lr = optimizer.param_groups[0]["lr"]
                 print(
-                    f"Epoch [{epoch}/{args.epochs}] Batch [{batch_idx+1}/{num_batches}] "
+                    f"Epoch [{epoch}/{args.epochs}] Batch [{batch_idx + 1}/{num_batches}] "
                     f"Step {step}/{total_steps} | Loss: {loss_val:.4f} | LR: {cur_lr:.2e}",
                     flush=True,
                 )

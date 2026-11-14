@@ -1,8 +1,9 @@
 """
-Non-Maximum Suppression (NMS) utilities (Pure PyTorch & torchvision.ops).
+Non-Maximum Suppression (NMS) utilities.
 """
 
 from typing import Dict, List, Tuple
+
 import torch
 from torchvision.ops import batched_nms
 
@@ -38,8 +39,6 @@ def multiclass_nms(
     # If scores are raw logits, apply sigmoid
     if scores.max() > 1.0 or scores.min() < 0.0:
         scores = scores.sigmoid()
-
-    num_classes = scores.shape[-1]
 
     # Flatten candidates across all classes
     # (N, C) -> (N * C,)

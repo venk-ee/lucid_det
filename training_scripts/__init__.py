@@ -1,5 +1,5 @@
 """
-Training scripts and experiment configuration definitions for LucidDet detector families.
+Training scripts and experiment configuration definitions detector families.
 """
 
 from training_scripts import rtmdet, yolov1, yolox

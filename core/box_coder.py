@@ -1,8 +1,9 @@
 """
-Box coordinate transformations and anchor-point prior generation (Pure PyTorch).
+Box coordinate transformations and anchor-point prior generation.
 """
 
 from typing import Optional, Sequence, Tuple, Union
+
 import torch
 
 
@@ -132,4 +133,3 @@ xywh_to_xyxy = box_xywh_to_xyxy
 xyxy_to_xywh = box_xyxy_to_xywh
 decode_bboxes = decode_ltrb_to_xyxy
 encode_bboxes = encode_xyxy_to_ltrb
-

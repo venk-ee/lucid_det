@@ -6,10 +6,11 @@ Direct imports matching modular standards.
 
 import argparse
 import os
-from pathlib import Path
 import random
 import sys
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import List
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -20,10 +21,11 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from datasets import DetDataset, det_collate
+
 from engine import COCOEvaluator, build_lr_scheduler
 from losses import YOLOv1Loss
 from models import YOLOv1
-from runners import load_checkpoint, save_checkpoint, train_one_epoch, val_one_epoch
+from runners import save_checkpoint, train_one_epoch, val_one_epoch
 from training_scripts.yolov1.config import TrainConfig
 from transforms import build_det_transform
 from utils.ema import ModelEMA
@@ -65,11 +67,11 @@ def run_training(cfg: TrainConfig) -> None:
     os.makedirs(cfg.work_dir, exist_ok=True)
     device = torch.device(cfg.optim.device)
 
-    print(f"==================================================")
+    print("==================================================")
     print(f"Initializing YOLOv1 Training: {cfg.exp_name} (classes={cfg.model.num_classes})")
     print(f"Device: {device} | Epochs: {cfg.optim.epochs} | Base LR: {cfg.optim.lr:.2e}")
     print(f"Work dir: {cfg.work_dir}")
-    print(f"==================================================")
+    print("==================================================")
 
     # 1. Dataset & DataLoader
     train_root = (
@@ -174,7 +176,9 @@ def run_training(cfg: TrainConfig) -> None:
 
         targets_matrix = torch.zeros(b_size, S, S, cfg.model.num_classes + 5, device=device)
         if isinstance(targets, dict) and "gt_boxes" in targets:
-            img_sz = float(cfg.data.img_size[0] if isinstance(cfg.data.img_size, tuple) else cfg.data.img_size)
+            img_sz = float(
+                cfg.data.img_size[0] if isinstance(cfg.data.img_size, tuple) else cfg.data.img_size
+            )
             for b_i in range(b_size):
                 gt_b = targets["gt_boxes"][b_i]
                 gt_l = targets["gt_labels"][b_i]
@@ -186,9 +190,9 @@ def run_training(cfg: TrainConfig) -> None:
                     cls_idx = min(int(lbl.item()), cfg.model.num_classes - 1)
                     targets_matrix[b_i, ci, cj, cls_idx] = 1.0
                     targets_matrix[b_i, ci, cj, cfg.model.num_classes] = 1.0
-                    targets_matrix[b_i, ci, cj, cfg.model.num_classes + 1 : cfg.model.num_classes + 5] = torch.tensor(
-                        [cx * S - cj, cy * S - ci, w, h], device=device
-                    )
+                    targets_matrix[
+                        b_i, ci, cj, cfg.model.num_classes + 1 : cfg.model.num_classes + 5
+                    ] = torch.tensor([cx * S - cj, cy * S - ci, w, h], device=device)
         return yolo_loss_fn(outputs, targets_matrix)
 
     # 4. Training Loop
@@ -215,7 +219,9 @@ def run_training(cfg: TrainConfig) -> None:
         print(f"--> Epoch [{epoch}/{cfg.optim.epochs}] Training Loss: {mean_loss:.4f}")
 
         # Validation
-        if val_loader is not None and (epoch % cfg.eval.eval_interval == 0 or epoch == cfg.optim.epochs):
+        if val_loader is not None and (
+            epoch % cfg.eval.eval_interval == 0 or epoch == cfg.optim.epochs
+        ):
             eval_model = ema.ema if ema is not None else model
             val_metrics = val_one_epoch(eval_model, val_loader, device=device, evaluator=evaluator)
             print(f"--> Epoch [{epoch}/{cfg.optim.epochs}] Validation Metrics: {val_metrics}")
