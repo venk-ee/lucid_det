@@ -1,6 +1,6 @@
 """
-End-to-end integration test for training data pipeline and detector training step.
-Verifies DetDataset -> det_collate -> model forward pass -> loss -> autograd backward pass.
+End-to-end integration and autograd gradient flow tests.
+Zero-dead-layer validation, numerical gradient stability, and graph leak checks.
 """
 
 import json
@@ -9,21 +9,25 @@ import tempfile
 
 import cv2
 import numpy as np
+import pytest
 import torch
 from torch.utils.data import DataLoader
 
 from datasets.det_dataset import DetDataset, det_collate
+from engine.ema import ModelEMA
 from losses.det_loss import det_loss
-from models.zoo import build_rtmdet
+from models.zoo import build_rtmdet, build_yolox
+from runners.det_runner import val_one_epoch
 from transforms.det_transforms import build_det_transform
 
 
-def test_full_training_step_integration():
+@pytest.fixture
+def mini_training_batch():
+    """Create a temporary dataset and return a collated batch."""
     with tempfile.TemporaryDirectory() as tmpdir:
         img_dir = os.path.join(tmpdir, "images")
         os.makedirs(img_dir, exist_ok=True)
 
-        # Create two sample images
         cv2.imwrite(
             os.path.join(img_dir, "train_0.jpg"), np.full((480, 640, 3), 100, dtype=np.uint8)
         )
@@ -69,50 +73,110 @@ def test_full_training_step_integration():
         with open(ann_path, "w") as f:
             json.dump(coco_data, f)
 
-        # Build transform and dataset
         transform = build_det_transform(img_size=640, is_train=True)
         dataset = DetDataset(root=img_dir, ann_file=ann_path, transform=transform, num_classes=2)
-
         loader = DataLoader(dataset, batch_size=2, shuffle=False, collate_fn=det_collate)
-        batch = next(iter(loader))
+        return next(iter(loader))
 
-        # Build detector
-        model = build_rtmdet(arch="tiny", num_classes=2)
-        model.train()
 
-        # Forward pass
-        outputs = model(batch["img"], training_override=True)
+# --- 1. Zero Dead-Layer Autograd Rigor ---
 
-        # Loss calculation
+
+@pytest.mark.parametrize(
+    "model_builder,builder_kwargs",
+    [
+        (build_rtmdet, {"arch": "tiny", "num_classes": 2}),
+        (build_rtmdet, {"arch": "s", "num_classes": 2}),
+        (build_yolox, {"arch": "s", "num_classes": 2}),
+    ],
+)
+def test_zero_dead_layers_autograd(mini_training_batch, model_builder, builder_kwargs):
+    """
+    Zero Dead Layers validation.
+    Asserts that 100% of trainable parameters receive valid, finite, non-zero autograd gradients.
+    """
+    model = model_builder(**builder_kwargs)
+    model.train()
+
+    outputs = model(mini_training_batch["img"], training_override=True)
+    total_loss, loss_dict = det_loss(
+        model_out=outputs,
+        gt_boxes_list=mini_training_batch["gt_boxes"],
+        gt_labels_list=mini_training_batch["gt_labels"],
+        cls_loss="qfl",
+        box_loss="giou",
+    )
+
+    assert torch.isfinite(total_loss), f"Loss must be finite, got {total_loss.item()}"
+    assert total_loss.item() > 0.0
+
+    model.zero_grad()
+    total_loss.backward()
+
+    # Verify every single parameter received non-zero gradient
+    dead_layers = []
+    for name, p in model.named_parameters():
+        if not p.requires_grad:
+            continue
+        if p.grad is None:
+            dead_layers.append(f"{name} (grad is None)")
+        elif not torch.isfinite(p.grad).all():
+            dead_layers.append(f"{name} (grad has NaN/Inf)")
+        elif p.grad.abs().sum() == 0.0:
+            dead_layers.append(f"{name} (gradient norm is exactly 0)")
+
+    assert len(dead_layers) == 0, f"Detected {len(dead_layers)} dead layers: {dead_layers[:5]}"
+
+
+# --- 2. Numerical Stability Under Mixed Precision (AMP) ---
+
+
+def test_amp_numerical_stability(mini_training_batch):
+    """Verify loss calculation and backward pass under lower precision (bfloat16)."""
+    model = build_rtmdet(arch="tiny", num_classes=2)
+    model.train()
+
+    with torch.amp.autocast(device_type="cpu", dtype=torch.bfloat16):
+        outputs = model(mini_training_batch["img"], training_override=True)
         total_loss, loss_dict = det_loss(
             model_out=outputs,
-            gt_boxes_list=batch["gt_boxes"],
-            gt_labels_list=batch["gt_labels"],
+            gt_boxes_list=mini_training_batch["gt_boxes"],
+            gt_labels_list=mini_training_batch["gt_labels"],
             cls_loss="qfl",
             box_loss="giou",
         )
 
-        assert torch.isfinite(total_loss), f"Loss must be finite, got {total_loss.item()}"
-        assert total_loss.item() > 0.0
+    assert torch.isfinite(total_loss), "AMP produced NaN or Inf loss!"
+    total_loss.backward()
 
-        # Backward pass
-        model.zero_grad()
-        total_loss.backward()
 
-        # Check gradients
-        grads = [p.grad for p in model.parameters() if p.grad is not None]
-        assert len(grads) > 0, "No gradients were computed!"
-        for g in grads:
-            assert torch.isfinite(g).all(), "Detected NaN or Inf gradient!"
+# --- 3. Inference Graph Leak Prevention ---
+
+
+def test_inference_eval_mode_graph_detached():
+    """Verify eval mode does NOT retain computational graph in detections (prevents memory leak)."""
+    model = build_rtmdet(arch="tiny", num_classes=2)
+    model.eval()
+
+    dummy_imgs = torch.randn(2, 3, 640, 640)
+    with torch.no_grad():
+        infer_out = model(dummy_imgs, training_override=False)
+
+    detections = infer_out["detections"]
+    for det in detections:
+        assert det["boxes"].grad_fn is None
+        assert det["scores"].grad_fn is None
+        assert det["labels"].grad_fn is None
+
+
+# --- 4. ModelEMA Compilation & DDP Resilience ---
 
 
 def test_model_ema_unwrapping():
-    from engine.ema import ModelEMA
-
+    """Ensure ModelEMA unwraps torch.compile (_orig_mod) and DDP (module) transparently."""
     model = build_rtmdet(arch="tiny", num_classes=2)
     ema = ModelEMA(model)
 
-    # Simulate torch.compile wrapper
     class DummyCompiledWrapper(torch.nn.Module):
         def __init__(self, m):
             super().__init__()
@@ -124,18 +188,18 @@ def test_model_ema_unwrapping():
             p.add_(1.0)
             break
 
-    # Update should succeed and update weights without error
     ema.update(wrapped)
     assert ema.updates == 1
 
 
-def test_val_one_epoch_coordinate_scaling():
-    from runners.det_runner import val_one_epoch
+# --- 5. Validation Coordinate Scaling & Category Mapping ---
 
+
+def test_val_one_epoch_coordinate_scaling():
+    """Verify validation loop unletterboxes predictions and maps 0-indexed labels to COCO IDs."""
     model = build_rtmdet(arch="tiny", num_classes=2)
     model.eval()
 
-    # Create dummy batch with ori_shape 720x1280 and 640x640 images
     batch = {
         "img": torch.randn(1, 3, 640, 640),
         "img_ids": [42],
@@ -156,7 +220,6 @@ def test_val_one_epoch_coordinate_scaling():
     metrics = val_one_epoch(model, loader, device="cpu", evaluator=evaluator)
     assert "mAP_50" in metrics
 
-    # If any detections were made, ensure coordinates are rescaled and category_id is mapped
     for p in captured_preds:
         assert p["image_id"] == 42
         assert p["category_id"] in (10, 25)
