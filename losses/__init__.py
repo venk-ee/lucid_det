@@ -1,10 +1,11 @@
 """
-Loss registries and builders for LucidDet.
+Loss registries and builders.
 
 Houses classification losses (CLS) and bounding box regression losses (BOX).
 """
 
 from typing import Any, Callable, Dict, Optional, Type, Union
+
 import torch.nn as nn
 
 CLS: Dict[str, Type[nn.Module]] = {}
@@ -85,16 +86,14 @@ def build_box_loss(name: str = "ciou", **kwargs: Any) -> nn.Module:
         **kwargs: Arguments passed to loss constructor.
     """
     if name not in BOX:
-        raise ValueError(
-            f"Unknown box loss '{name}'. Available: {sorted(list(BOX.keys()))}"
-        )
+        raise ValueError(f"Unknown box loss '{name}'. Available: {sorted(list(BOX.keys()))}")
     return BOX[name](**kwargs)
 
 
 # Import concrete implementations to trigger registration
-from losses.qfl import QualityFocalLoss
-from losses.iou_loss import CIoULoss, GIoULoss, IoULoss
 from losses.det_loss import det_loss
+from losses.iou_loss import CIoULoss, GIoULoss, IoULoss
+from losses.qfl import QualityFocalLoss
 from losses.yolov1_loss import YOLOv1Loss
 
 __all__ = [
@@ -111,6 +110,3 @@ __all__ = [
     "build_cls_loss",
     "build_box_loss",
 ]
-
-
-

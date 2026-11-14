@@ -1,10 +1,9 @@
 """
-RTMDet detector model class (Pure PyTorch).
+RTMDet detector model class.
 Assembles CSPNeXt backbone, CSPNeXtPAFPN neck, and SepBNHead head.
 """
 
-from typing import Any, Optional, Sequence, Tuple
-import torch.nn as nn
+from typing import Any
 
 from backbones import build_backbone
 from heads import build_head

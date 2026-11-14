@@ -1,8 +1,9 @@
 """
-Registry for LucidDet weight conversion functions and model weight presets.
+Registry weight conversion functions and model weight presets.
 """
 
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Union
+
 import torch
 
 from weights.base import ModelWeightPreset

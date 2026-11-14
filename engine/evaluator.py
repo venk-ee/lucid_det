@@ -1,14 +1,14 @@
 """
-Fast COCO Evaluation Engine (Pure PyTorch & faster-coco-eval / pycocotools).
+Fast COCO Evaluation Engine.
 Computes standard COCO bbox mAP (AP50:95, AP50, AP75, AP_s, AP_m, AP_l).
 """
 
 import os
 from typing import Any, Dict, List, Optional, Union
-import numpy as np
 
 try:
     import faster_coco_eval
+
     faster_coco_eval.init_as_pycocotools()
     _BACKEND = "faster-coco-eval"
 except Exception:

@@ -1,5 +1,5 @@
 """
-Inference and visualization tool for LucidDet.
+Inference and visualization tool.
 Runs single-image detector inference, performs NMS post-processing,
 unletterboxes coordinates back to original image space, and renders detections.
 
@@ -12,6 +12,7 @@ import argparse
 import os
 import sys
 from typing import Any, Dict, List, Optional, Tuple
+
 import cv2
 import numpy as np
 import torch
@@ -21,8 +22,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
+from models import build_rtmdet, build_yolov1, build_yolox
 from transforms import letterbox_image, unletterbox_boxes_xyxy
-from models import build_rtmdet, build_yolov1, build_yolox, RTMDet, YOLOX, YOLOv1
 
 
 def create_model(model_name: str, num_classes: int) -> nn.Module:
@@ -42,7 +43,9 @@ def create_model(model_name: str, num_classes: int) -> nn.Module:
         )
 
 
-def load_weights(model: nn.Module, weights_path: str, device: torch.device) -> Tuple[nn.Module, Optional[Dict[str, Any]]]:
+def load_weights(
+    model: nn.Module, weights_path: str, device: torch.device
+) -> Tuple[nn.Module, Optional[Dict[str, Any]]]:
     """
     Robust checkpoint loader.
     Handles CheckpointEnvelope metadata, ModelEMA shadow dictionaries,
@@ -92,11 +95,26 @@ def load_weights(model: nn.Module, weights_path: str, device: torch.device) -> T
 def get_color(idx: int) -> Tuple[int, int, int]:
     """Generate distinct pseudo-random color for visualization."""
     palette = [
-        (255, 56, 56), (255, 157, 151), (255, 112, 31), (255, 178, 29),
-        (207, 210, 49), (72, 249, 10), (146, 204, 23), (61, 219, 134),
-        (26, 147, 52), (0, 212, 187), (44, 153, 168), (0, 194, 255),
-        (52, 69, 147), (100, 115, 255), (0, 24, 236), (132, 56, 255),
-        (82, 0, 133), (203, 56, 255), (255, 149, 200), (255, 55, 199)
+        (255, 56, 56),
+        (255, 157, 151),
+        (255, 112, 31),
+        (255, 178, 29),
+        (207, 210, 49),
+        (72, 249, 10),
+        (146, 204, 23),
+        (61, 219, 134),
+        (26, 147, 52),
+        (0, 212, 187),
+        (44, 153, 168),
+        (0, 194, 255),
+        (52, 69, 147),
+        (100, 115, 255),
+        (0, 24, 236),
+        (132, 56, 255),
+        (82, 0, 133),
+        (203, 56, 255),
+        (255, 149, 200),
+        (255, 55, 199),
     ]
     return palette[idx % len(palette)]
 
@@ -106,12 +124,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--img", type=str, required=True, help="Path to input image")
     parser.add_argument("--weights", type=str, required=True, help="Path to checkpoint .pth")
     parser.add_argument("--model", type=str, default="rtmdet_tiny", help="Model architecture")
-    parser.add_argument("--out", type=str, default="outputs/vis.jpg", help="Path to save output visualization")
+    parser.add_argument(
+        "--out", type=str, default="outputs/vis.jpg", help="Path to save output visualization"
+    )
     parser.add_argument("--thr", type=float, default=0.3, help="Confidence score threshold")
     parser.add_argument("--img-size", type=int, default=640, help="Inference resolution")
     parser.add_argument("--num-classes", type=int, default=80, help="Number of foreground classes")
-    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
-    parser.add_argument("--class-names", type=str, default=None, help="Optional text file with class names")
+    parser.add_argument(
+        "--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu"
+    )
+    parser.add_argument(
+        "--class-names", type=str, default=None, help="Optional text file with class names"
+    )
     return parser.parse_args()
 
 
@@ -124,7 +148,6 @@ def main() -> None:
     if orig_img is None:
         raise FileNotFoundError(f"Failed to read image at: {args.img}")
     orig_h, orig_w = orig_img.shape[:2]
-    rgb = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
 
     # 2. Build model & load weights
     model = create_model(args.model, args.num_classes)
@@ -146,7 +169,11 @@ def main() -> None:
         if "std" in meta and meta["std"]:
             std_vals = tuple(meta["std"])
         if "input_size" in meta and meta["input_size"] and args.img_size == 640:
-            img_size = meta["input_size"][0] if isinstance(meta["input_size"], (list, tuple)) else meta["input_size"]
+            img_size = (
+                meta["input_size"][0]
+                if isinstance(meta["input_size"], (list, tuple))
+                else meta["input_size"]
+            )
 
     if color_space == "RGB":
         processed_img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
@@ -160,7 +187,11 @@ def main() -> None:
 
     mean_arr = np.array(mean_vals, dtype=np.float32)
     std_arr = np.array(std_vals, dtype=np.float32)
-    if (meta is not None and meta.get("family") == "yolox") or args.model.startswith("yolox") or np.any(mean_arr > 1.0):
+    if (
+        (meta is not None and meta.get("family") == "yolox")
+        or args.model.startswith("yolox")
+        or np.any(mean_arr > 1.0)
+    ):
         inp = (letterboxed.astype(np.float32) - mean_arr) / std_arr
     else:
         inp = (letterboxed.astype(np.float32) / 255.0 - mean_arr) / std_arr

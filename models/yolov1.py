@@ -1,10 +1,9 @@
 """
-YOLOv1 detector model class (Pure PyTorch).
+YOLOv1 detector model class.
 Assembles Darknet24 backbone and YOLOv1Head.
 """
 
-from typing import Any, Optional, Sequence, Tuple
-import torch.nn as nn
+from typing import Any, Optional
 
 from backbones import build_backbone
 from heads import build_head

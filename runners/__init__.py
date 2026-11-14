@@ -1,5 +1,5 @@
 """
-Training runners and evaluation loops for LucidDet.
+Training runners and evaluation loops.
 """
 
 from runners.det_runner import (

@@ -4,9 +4,9 @@ Core geometry, bounding box coding, IoU calculations, and NMS primitives.
 
 from core.box_coder import (
     box_cxcywh_to_xyxy,
+    box_xywh_to_xyxy,
     box_xyxy_to_cxcywh,
     box_xyxy_to_xywh,
-    box_xywh_to_xyxy,
     cxcywh_to_xyxy,
     decode_ltrb_to_xyxy,
     encode_xyxy_to_ltrb,

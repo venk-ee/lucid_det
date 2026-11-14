@@ -1,5 +1,5 @@
 """
-Engine modules for LucidDet: evaluation, EMA, learning rate scheduling, and training helpers.
+Engine modules: evaluation, EMA, learning rate scheduling, and training helpers.
 """
 
 from engine.ema import ModelEMA

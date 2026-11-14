@@ -1,11 +1,12 @@
 """
-YOLOX weight converter plugin and model presets for LucidDet.
+YOLOX weight converter plugin and model presets.
 Handles official Megvii YOLOX checkpoints with prefix stripping,
 PAFPN neck key remapping, and Focus -> Conv 6x6 spatial weight reshaping:
     w = focus_weight.view(c_out, 3, 2, 2, 3, 3).permute(0, 1, 4, 2, 5, 3).reshape(c_out, 3, 6, 6)
 """
 
 from typing import Any, Dict
+
 import torch
 
 from weights.base import ModelWeightPreset
@@ -20,7 +21,7 @@ def translate_yolox_key(k: str) -> str:
 
     # Strip double backbone prefix
     if new_k.startswith("backbone.backbone."):
-        new_k = "backbone." + new_k[len("backbone.backbone."):]
+        new_k = "backbone." + new_k[len("backbone.backbone.") :]
 
     # Remap PAFPN neck blocks
     neck_map = {
@@ -35,7 +36,7 @@ def translate_yolox_key(k: str) -> str:
     }
     for old_pfx, new_pfx in neck_map.items():
         if new_k.startswith(old_pfx):
-            new_k = new_pfx + new_k[len(old_pfx):]
+            new_k = new_pfx + new_k[len(old_pfx) :]
             break
 
     # CSPLayer sub-modules: conv1 -> main_conv, conv2 -> short_conv, conv3 -> final_conv, m -> blocks
@@ -86,7 +87,11 @@ def convert_yolox(raw_sd: Any, preset: ModelWeightPreset) -> Dict[str, torch.Ten
     # Check for Focus layer weights to reshape into Conv 6x6
     focus_weight_key = None
     for k in sd.keys():
-        if "stem.conv.conv.weight" in k or "stem.focus.conv.conv.weight" in k or "stem.focus.conv.weight" in k:
+        if (
+            "stem.conv.conv.weight" in k
+            or "stem.focus.conv.conv.weight" in k
+            or "stem.focus.conv.weight" in k
+        ):
             focus_weight_key = k
             break
 
@@ -109,7 +114,9 @@ def convert_yolox(raw_sd: Any, preset: ModelWeightPreset) -> Dict[str, torch.Ten
                 clean_sd["backbone.stem.bn.running_mean"] = sd[f"{base_prefix}.bn.running_mean"]
                 clean_sd["backbone.stem.bn.running_var"] = sd[f"{base_prefix}.bn.running_var"]
                 if f"{base_prefix}.bn.num_batches_tracked" in sd:
-                    clean_sd["backbone.stem.bn.num_batches_tracked"] = sd[f"{base_prefix}.bn.num_batches_tracked"]
+                    clean_sd["backbone.stem.bn.num_batches_tracked"] = sd[
+                        f"{base_prefix}.bn.num_batches_tracked"
+                    ]
 
     for k, v in sd.items():
         if not isinstance(v, torch.Tensor):

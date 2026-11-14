@@ -1,11 +1,12 @@
 """
-Model Exponential Moving Average (EMA) for LucidDet.
+Model Exponential Moving Average (EMA).
 Maintains a smoothed shadow copy of model weights for robust evaluation and checkpointing.
 """
 
 import copy
 import math
 from typing import Any, Dict
+
 import torch
 import torch.nn as nn
 

@@ -1,14 +1,12 @@
 """
-YOLOv1 Multi-Task SSE Loss (Pure PyTorch) for LucidDet.
+YOLOv1 Multi-Task SSE Loss.
 Computes coordinate regression, confidence, and classification loss over SxS grid cells.
 """
 
 from typing import Any, Dict, Tuple, Union
+
 import torch
-
 import torch.nn as nn
-
-from core.iou import box_iou
 
 
 def _box_iou_xywh(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:
@@ -81,8 +79,12 @@ class YOLOv1Loss(nn.Module):
         # Calculate IoU for each predicted box with target box
         # target structure: [C classes, 1 objectness, 4 coords (x,y,w,h)]
         # predictions structure: [C classes, box1_conf (1), box1_coords (4), box2_conf (1), box2_coords (4)]
-        iou_b1 = _box_iou_xywh(preds[..., self.C + 1 : self.C + 5], target[..., self.C + 1 : self.C + 5])
-        iou_b2 = _box_iou_xywh(preds[..., self.C + 6 : self.C + 10], target[..., self.C + 1 : self.C + 5])
+        iou_b1 = _box_iou_xywh(
+            preds[..., self.C + 1 : self.C + 5], target[..., self.C + 1 : self.C + 5]
+        )
+        iou_b2 = _box_iou_xywh(
+            preds[..., self.C + 6 : self.C + 10], target[..., self.C + 1 : self.C + 5]
+        )
 
         ious = torch.cat([iou_b1.unsqueeze(0), iou_b2.unsqueeze(0)], dim=0)
         _, best_box = torch.max(ious, dim=0)
@@ -134,10 +136,7 @@ class YOLOv1Loss(nn.Module):
         )
 
         total_loss = (
-            self.lambda_coord * coord_loss
-            + obj_loss
-            + self.lambda_noobj * no_obj_loss
-            + class_loss
+            self.lambda_coord * coord_loss + obj_loss + self.lambda_noobj * no_obj_loss + class_loss
         ) / max(batch_size, 1)
 
         return total_loss, {

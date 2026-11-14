@@ -1,10 +1,11 @@
 """
-Training and evaluation execution runner for LucidDet (Pure PyTorch).
+Training and evaluation execution runner.
 Clean detection runner design with AMP, ModelEMA, and validation cadence.
 """
 
 import os
 from typing import Any, Callable, Dict, Optional, Tuple, Union
+
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -94,11 +95,7 @@ def train_one_epoch(
 
         if isinstance(batch, dict):
             images = batch["img"].to(device, non_blocking=True)
-            batch_targets = {
-                k: _move_to_device(v, device)
-                for k, v in batch.items()
-                if k != "img"
-            }
+            batch_targets = {k: _move_to_device(v, device) for k, v in batch.items() if k != "img"}
         elif isinstance(batch, (tuple, list)):
             images = batch[0].to(device, non_blocking=True)
             batch_targets = _move_to_device(batch[1], device)
@@ -170,7 +167,9 @@ def val_one_epoch(
         for batch_idx, batch in enumerate(tqdm(dataloader, desc="Validation", leave=False)):
             if isinstance(batch, dict):
                 images = batch["img"].to(device, non_blocking=True)
-                img_ids = batch.get("img_ids", [batch_idx * len(images) + i for i in range(len(images))])
+                img_ids = batch.get(
+                    "img_ids", [batch_idx * len(images) + i for i in range(len(images))]
+                )
             elif isinstance(batch, (tuple, list)):
                 images = batch[0].to(device, non_blocking=True)
                 img_ids = [batch_idx * len(images) + i for i in range(len(images))]
@@ -189,15 +188,21 @@ def val_one_epoch(
                     boxes = det["boxes"]
                     scores = det["scores"]
                     labels = det["labels"]
-                    for b, s, l in zip(boxes, scores, labels):
+                    for b, s, lbl in zip(boxes, scores, labels):
                         x1, y1, x2, y2 = b.tolist()
-                        img_id_val = int(img_id) if not hasattr(img_id, "item") else int(img_id.item())
-                        all_predictions.append({
-                            "image_id": img_id_val,
-                            "category_id": int(l.item()) if hasattr(l, "item") else int(l),
-                            "bbox": [x1, y1, max(0.0, x2 - x1), max(0.0, y2 - y1)],
-                            "score": float(s.item()) if hasattr(s, "item") else float(s),
-                        })
+                        img_id_val = (
+                            int(img_id) if not hasattr(img_id, "item") else int(img_id.item())
+                        )
+                        all_predictions.append(
+                            {
+                                "image_id": img_id_val,
+                                "category_id": int(lbl.item())
+                                if hasattr(lbl, "item")
+                                else int(lbl),
+                                "bbox": [x1, y1, max(0.0, x2 - x1), max(0.0, y2 - y1)],
+                                "score": float(s.item()) if hasattr(s, "item") else float(s),
+                            }
+                        )
 
     if evaluator is not None and hasattr(evaluator, "evaluate"):
         return evaluator.evaluate(all_predictions)

@@ -1,10 +1,11 @@
 """
-SepBNHead: Decoupled anchor-free detection head with level-separated BatchNorm (Pure PyTorch).
+SepBNHead: Decoupled anchor-free detection head with level-separated BatchNorm.
 Faithful to RTMDet specification.
 """
 
 import math
-from typing import Any, List, Optional, Sequence, Tuple, Union
+from typing import Optional, Sequence, Tuple, Union
+
 import torch
 import torch.nn as nn
 
@@ -92,9 +93,7 @@ class SepBNHead(nn.Module):
         self.reg_convs = nn.ModuleList()
         self.rtm_cls = nn.ModuleList()
         self.rtm_reg = nn.ModuleList()
-        self.rtm_obj: Optional[nn.ModuleList] = (
-            nn.ModuleList() if with_objectness else None
-        )
+        self.rtm_obj: Optional[nn.ModuleList] = nn.ModuleList() if with_objectness else None
 
         for lvl, stride in enumerate(self.strides):
             cls_branch, reg_branch = nn.ModuleList(), nn.ModuleList()
@@ -196,14 +195,14 @@ class SepBNHead(nn.Module):
 
             centers, stride_tensor = self._get_grid(h, w, stride, device, reg_flat.dtype)
 
-            l = reg_flat[..., 0]
-            t = reg_flat[..., 1]
-            r = reg_flat[..., 2]
+            left = reg_flat[..., 0]
+            top = reg_flat[..., 1]
+            right = reg_flat[..., 2]
             bottom = reg_flat[..., 3]
 
-            x1 = centers[:, 0].unsqueeze(0) - l
-            y1 = centers[:, 1].unsqueeze(0) - t
-            x2 = centers[:, 0].unsqueeze(0) + r
+            x1 = centers[:, 0].unsqueeze(0) - left
+            y1 = centers[:, 1].unsqueeze(0) - top
+            x2 = centers[:, 0].unsqueeze(0) + right
             y2 = centers[:, 1].unsqueeze(0) + bottom
             decoded = torch.stack([x1, y1, x2, y2], dim=-1)
 

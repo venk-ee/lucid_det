@@ -1,10 +1,9 @@
 """
-YOLOX detector model class (Pure PyTorch).
+YOLOX detector model class.
 Assembles CSPDarknet backbone, YOLOXPAFPN neck, and Decoupled YOLOXHead.
 """
 
-from typing import Any, Optional, Sequence, Tuple
-import torch.nn as nn
+from typing import Any
 
 from backbones import build_backbone
 from heads import build_head

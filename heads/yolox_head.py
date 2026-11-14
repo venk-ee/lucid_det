@@ -1,10 +1,11 @@
 """
-YOLOX Decoupled Detection Head (Pure PyTorch) for LucidDet.
+YOLOX Decoupled Detection Head.
 Decouples classification, bounding box regression, and objectness branches.
 Returns standard DetectionOutput contract.
 """
 
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import Sequence, Tuple, Union
+
 import torch
 import torch.nn as nn
 
@@ -78,6 +79,7 @@ class YOLOXHead(nn.Module):
 
     def _init_weights(self) -> None:
         import math
+
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.normal_(m.weight, 0, 0.01)
@@ -125,7 +127,9 @@ class YOLOXHead(nn.Module):
             )
             grid_x = xs.reshape(-1)
             grid_y = ys.reshape(-1)
-            centers = torch.stack([(grid_x + 0.5) * stride, (grid_y + 0.5) * stride], dim=-1).float()
+            centers = torch.stack(
+                [(grid_x + 0.5) * stride, (grid_y + 0.5) * stride], dim=-1
+            ).float()
             stride_tensor = torch.full((h * w, 1), stride, device=device, dtype=torch.float32)
 
             # YOLOX box decoding:

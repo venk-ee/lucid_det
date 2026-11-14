@@ -1,5 +1,5 @@
 """
-Quality Focal Loss (Pure PyTorch) for LucidDet.
+Quality Focal Loss.
 Computes elementwise QFL with soft IoU-weighted targets.
 """
 

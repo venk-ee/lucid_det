@@ -1,15 +1,16 @@
 """
-CSPNeXt backbone (Pure PyTorch) for LucidDet.
+CSPNeXt backbone.
 Faithful to RTMDet architecture specification.
 Contract: forward(x) -> List[Tensor] ([P3, P4, P5]), exposes .out_channels and .strides.
 """
 
 from typing import List, Optional, Sequence, Tuple
+
 import torch
 import torch.nn as nn
 
 from backbones import register_backbone
-from backbones.common import ConvModule, CSPLayer, SPPF, SPPBottleneck
+from backbones.common import SPPF, ConvModule, CSPLayer, SPPBottleneck
 
 
 @register_backbone("cspnext")
@@ -47,7 +48,9 @@ class CSPNeXt(nn.Module):
         super().__init__()
         if arch is not None:
             if arch not in self.PRESETS:
-                raise ValueError(f"Unknown arch '{arch}', choose from {sorted(list(self.PRESETS.keys()))}")
+                raise ValueError(
+                    f"Unknown arch '{arch}', choose from {sorted(list(self.PRESETS.keys()))}"
+                )
             preset_deepen, preset_widen, preset_dw = self.PRESETS[arch]
         else:
             preset_deepen, preset_widen, preset_dw = 0.333, 0.5, False

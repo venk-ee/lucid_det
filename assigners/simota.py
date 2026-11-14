@@ -1,9 +1,10 @@
 """
-SimOTA / Dynamic Soft Label Assigner (Pure PyTorch) for LucidDet.
+SimOTA / Dynamic Soft Label Assigner.
 Matches ground-truth annotations to anchor priors per image.
 """
 
 from typing import Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -90,7 +91,9 @@ def dynamic_soft_label_assign(
 
     pairwise_ious = box_iou(v_boxes, gt_boxes).clamp(min=EPS)  # (V, G)
 
-    dist = (v_centers[:, None, :] - gt_center[None, :, :]).pow(2).sum(-1).sqrt() / v_strides[:, None]
+    dist = (v_centers[:, None, :] - gt_center[None, :, :]).pow(2).sum(-1).sqrt() / v_strides[
+        :, None
+    ]
     soft_prior = torch.pow(10.0, (dist - soft_center_radius).clamp(max=8.0))
 
     iou_cost = -torch.log(pairwise_ious + EPS) * iou_weight

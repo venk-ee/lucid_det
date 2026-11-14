@@ -1,5 +1,5 @@
 """
-Unified Sanity Smoke Test for LucidDet:
+Unified Sanity Smoke Test:
 Verifies all 3 supported detector architectures on CUDA:
   1. RTMDet (arch=tiny, arch=s)
   2. YOLOX (arch=s)
@@ -16,10 +16,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from typing import Dict, List
 import torch
 
-from assigners import dynamic_soft_label_assign
 from losses import YOLOv1Loss, det_loss
 from models import build_rtmdet, build_yolov1, build_yolox
 
@@ -51,7 +49,9 @@ def run_rtmdet_sanity(device: torch.device, arch: str = "tiny", num_classes: int
         cls_loss="qfl",
         box_loss="giou",
     )
-    print(f"  Train Loss: Total={total_loss.item():.4f} | Cls={loss_dict['loss_cls'].item():.4f} | Box={loss_dict['loss_box'].item():.4f}")
+    print(
+        f"  Train Loss: Total={total_loss.item():.4f} | Cls={loss_dict['loss_cls'].item():.4f} | Box={loss_dict['loss_box'].item():.4f}"
+    )
 
     assert torch.isfinite(total_loss), "Loss must be finite!"
     model.zero_grad()
@@ -64,7 +64,9 @@ def run_rtmdet_sanity(device: torch.device, arch: str = "tiny", num_classes: int
     model.eval()
     with torch.no_grad():
         infer_out = model(dummy_imgs, training_override=False)
-    detections = infer_out.detections if hasattr(infer_out, "detections") else infer_out["detections"]
+    detections = (
+        infer_out.detections if hasattr(infer_out, "detections") else infer_out["detections"]
+    )
     assert len(detections) == batch_size
     print(f"  Inference NMS decoding OK (Batch={len(detections)})")
     print(f"  [PASS] RTMDet ({arch}) PASSED")
@@ -97,7 +99,9 @@ def run_yolox_sanity(device: torch.device, arch: str = "s", num_classes: int = 8
         cls_loss="qfl",
         box_loss="giou",
     )
-    print(f"  Train Loss: Total={total_loss.item():.4f} | Cls={loss_dict['loss_cls'].item():.4f} | Box={loss_dict['loss_box'].item():.4f}")
+    print(
+        f"  Train Loss: Total={total_loss.item():.4f} | Cls={loss_dict['loss_cls'].item():.4f} | Box={loss_dict['loss_box'].item():.4f}"
+    )
 
     assert torch.isfinite(total_loss), "Loss must be finite!"
     model.zero_grad()
@@ -110,7 +114,9 @@ def run_yolox_sanity(device: torch.device, arch: str = "s", num_classes: int = 8
     model.eval()
     with torch.no_grad():
         infer_out = model(dummy_imgs, training_override=False)
-    detections = infer_out.detections if hasattr(infer_out, "detections") else infer_out["detections"]
+    detections = (
+        infer_out.detections if hasattr(infer_out, "detections") else infer_out["detections"]
+    )
     assert len(detections) == batch_size
     print(f"  Inference NMS decoding OK (Batch={len(detections)})")
     print(f"  [PASS] YOLOX ({arch}) PASSED")
@@ -132,11 +138,15 @@ def run_yolov1_sanity(device: torch.device, num_classes: int = 20, S: int = 7, B
     # Put one object at cell (3, 3)
     dummy_targets[:, 3, 3, 0] = 1.0  # class 0
     dummy_targets[:, 3, 3, num_classes] = 1.0  # objectness confidence
-    dummy_targets[:, 3, 3, num_classes + 1 : num_classes + 5] = torch.tensor([0.5, 0.5, 0.2, 0.2], device=device)
+    dummy_targets[:, 3, 3, num_classes + 1 : num_classes + 5] = torch.tensor(
+        [0.5, 0.5, 0.2, 0.2], device=device
+    )
 
     loss_fn = YOLOv1Loss(split_size=S, num_boxes=B, num_classes=num_classes)
     total_loss, loss_dict = loss_fn(outputs, dummy_targets)
-    print(f"  Train Loss: Total={total_loss.item():.4f} | Coord={loss_dict['loss_coord'].item():.4f} | Obj={loss_dict['loss_obj'].item():.4f} | NoObj={loss_dict['loss_noobj'].item():.4f}")
+    print(
+        f"  Train Loss: Total={total_loss.item():.4f} | Coord={loss_dict['loss_coord'].item():.4f} | Obj={loss_dict['loss_obj'].item():.4f} | NoObj={loss_dict['loss_noobj'].item():.4f}"
+    )
 
     assert torch.isfinite(total_loss), "Loss must be finite!"
     model.zero_grad()
@@ -149,10 +159,12 @@ def run_yolov1_sanity(device: torch.device, num_classes: int = 20, S: int = 7, B
     model.eval()
     with torch.no_grad():
         infer_out = model(dummy_imgs, training_override=False)
-    detections = infer_out.detections if hasattr(infer_out, "detections") else infer_out["detections"]
+    detections = (
+        infer_out.detections if hasattr(infer_out, "detections") else infer_out["detections"]
+    )
     assert len(detections) == batch_size
     print(f"  Inference NMS decoding OK (Batch={len(detections)})")
-    print(f"  [PASS] YOLOv1 PASSED")
+    print("  [PASS] YOLOv1 PASSED")
 
 
 def main() -> None:

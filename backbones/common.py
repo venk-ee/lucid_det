@@ -1,9 +1,10 @@
 """
-Common neural network layers and building blocks for LucidDet backbones and necks (Pure PyTorch).
+Common neural network layers and building blocks backbones and necks.
 Faithful to CSPNeXt / RTMDet architecture specifications.
 """
 
-from typing import Optional, Sequence, Tuple
+from typing import Optional, Sequence
+
 import torch
 import torch.nn as nn
 
@@ -198,9 +199,7 @@ class SPPBottleneck(nn.Module):
         super().__init__()
         hidden = in_channels // 2
         self.conv1 = ConvModule(in_channels, hidden, 1)
-        self.pools = nn.ModuleList(
-            [nn.MaxPool2d(k, 1, k // 2) for k in kernel_sizes]
-        )
+        self.pools = nn.ModuleList([nn.MaxPool2d(k, 1, k // 2) for k in kernel_sizes])
         self.conv2 = ConvModule(hidden * (len(kernel_sizes) + 1), out_channels, 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

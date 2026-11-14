@@ -1,14 +1,15 @@
 """
-CSPDarknet backbone (Pure PyTorch) for LucidDet.
+CSPDarknet backbone.
 Faithful to YOLOX architecture specifications with multi-scale variants (tiny, s, m, l, x).
 """
 
 from typing import Dict, List, Optional, Sequence, Tuple
+
 import torch
 import torch.nn as nn
 
 from backbones import register_backbone
-from backbones.common import ConvModule, CSPLayer, SPPF
+from backbones.common import SPPF, ConvModule, CSPLayer
 
 
 @register_backbone("cspdarknet")

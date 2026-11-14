@@ -1,5 +1,5 @@
 """
-Target assigners registry and builder for LucidDet.
+Target assigners registry and builder.
 
 Assigners match ground-truth boxes to priors/anchors to produce training targets.
 """
@@ -69,4 +69,3 @@ __all__ = [
     "register_assigner",
     "build_assigner",
 ]
-

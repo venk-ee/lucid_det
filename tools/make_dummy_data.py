@@ -5,6 +5,7 @@ Creates 10 images and annotations in data/dummy/.
 
 import json
 import os
+
 import cv2
 import numpy as np
 
@@ -39,26 +40,34 @@ def make_dummy_coco_data(output_dir: str = "data/dummy", num_images: int = 10) -
             bh = int(rng.integers(40, 180))
             cat_id = int(rng.choice([1, 2, 3]))
 
-            color = (int(rng.integers(0, 255)), int(rng.integers(0, 255)), int(rng.integers(0, 255)))
+            color = (
+                int(rng.integers(0, 255)),
+                int(rng.integers(0, 255)),
+                int(rng.integers(0, 255)),
+            )
             cv2.rectangle(img, (bx, by), (bx + bw, by + bh), color, -1)
 
-            annotations.append({
-                "id": ann_id,
-                "image_id": i,
-                "category_id": cat_id,
-                "bbox": [bx, by, bw, bh],
-                "area": bw * bh,
-                "iscrowd": 0,
-            })
+            annotations.append(
+                {
+                    "id": ann_id,
+                    "image_id": i,
+                    "category_id": cat_id,
+                    "bbox": [bx, by, bw, bh],
+                    "area": bw * bh,
+                    "iscrowd": 0,
+                }
+            )
             ann_id += 1
 
         cv2.imwrite(os.path.join(img_dir, fn), img)
-        images.append({
-            "id": i,
-            "file_name": fn,
-            "height": h,
-            "width": w,
-        })
+        images.append(
+            {
+                "id": i,
+                "file_name": fn,
+                "height": h,
+                "width": w,
+            }
+        )
 
     coco_dict = {
         "images": images,
@@ -70,7 +79,9 @@ def make_dummy_coco_data(output_dir: str = "data/dummy", num_images: int = 10) -
     with open(ann_file, "w") as f:
         json.dump(coco_dict, f, indent=2)
 
-    print(f"Created dummy dataset in {output_dir}: {len(images)} images, {len(annotations)} annotations.")
+    print(
+        f"Created dummy dataset in {output_dir}: {len(images)} images, {len(annotations)} annotations."
+    )
     return ann_file
 
 

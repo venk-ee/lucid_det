@@ -1,9 +1,10 @@
 """
-YOLOv1 Fully Connected Detection Head (Pure PyTorch) for LucidDet.
+YOLOv1 Fully Connected Detection Head.
 Decodes S x S grid cell predictions with B bounding boxes and C classes into DetectionOutput.
 """
 
-from typing import Any, List, Optional, Sequence, Tuple, Union
+from typing import List, Sequence
+
 import torch
 import torch.nn as nn
 
@@ -69,7 +70,7 @@ class YOLOv1Head(nn.Module):
 
         # Extract classes (first C elements or last C elements depending on convention)
         # Following YoloV1/loss.py: [classes (C), box1 (5), box2 (5)] -> C + B*5
-        cls_probs = grid_preds[..., :self.num_classes].softmax(dim=-1)
+        cls_probs = grid_preds[..., : self.num_classes].softmax(dim=-1)
 
         boxes_list: List[torch.Tensor] = []
         cls_list: List[torch.Tensor] = []
@@ -112,7 +113,9 @@ class YOLOv1Head(nn.Module):
         pred_boxes = torch.cat(boxes_list, dim=1)  # (B, S * S * B, 4)
         pred_cls = torch.cat(cls_list, dim=1)  # (B, S * S * B, num_classes)
         anchor_centers = torch.cat(centers_list, dim=0)  # (S * S * B, 2)
-        anchor_strides = torch.full((pred_boxes.shape[1], 1), cell_size, device=device, dtype=torch.float32)
+        anchor_strides = torch.full(
+            (pred_boxes.shape[1], 1), cell_size, device=device, dtype=torch.float32
+        )
 
         out = DetectionOutput(
             pred_cls=pred_cls,

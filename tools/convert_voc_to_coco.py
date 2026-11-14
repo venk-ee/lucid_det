@@ -6,14 +6,30 @@ Converts VOC bounding box annotations into standardized COCO detection format.
 import argparse
 import json
 import os
-from typing import Dict, List, Optional
 import xml.etree.ElementTree as ET
+from typing import Optional
 
 VOC_CLASSES = [
-    "aeroplane", "bicycle", "bird", "boat", "bottle",
-    "bus", "car", "cat", "chair", "cow",
-    "diningtable", "dog", "horse", "motorbike", "person",
-    "pottedplant", "sheep", "sofa", "train", "tvmonitor"
+    "aeroplane",
+    "bicycle",
+    "bird",
+    "boat",
+    "bottle",
+    "bus",
+    "car",
+    "cat",
+    "chair",
+    "cow",
+    "diningtable",
+    "dog",
+    "horse",
+    "motorbike",
+    "person",
+    "pottedplant",
+    "sheep",
+    "sofa",
+    "train",
+    "tvmonitor",
 ]
 
 
@@ -33,7 +49,6 @@ def convert_voc_to_coco(
         include_difficult: Whether to include difficult bounding boxes.
     """
     ann_dir = os.path.join(voc_dir, "Annotations")
-    img_dir = os.path.join(voc_dir, "JPEGImages")
 
     if not os.path.isdir(ann_dir):
         raise FileNotFoundError(f"Annotations directory not found in: {voc_dir}")
@@ -44,7 +59,9 @@ def convert_voc_to_coco(
     else:
         valid_ids = None
 
-    categories = [{"id": i + 1, "name": name, "supercategory": "none"} for i, name in enumerate(VOC_CLASSES)]
+    categories = [
+        {"id": i + 1, "name": name, "supercategory": "none"} for i, name in enumerate(VOC_CLASSES)
+    ]
     class_to_id = {name: i + 1 for i, name in enumerate(VOC_CLASSES)}
 
     images = []
@@ -76,12 +93,14 @@ def convert_voc_to_coco(
         if not os.path.splitext(fn)[1]:
             fn = f"{fn}.jpg"
 
-        images.append({
-            "id": img_id,
-            "file_name": fn,
-            "width": width,
-            "height": height,
-        })
+        images.append(
+            {
+                "id": img_id,
+                "file_name": fn,
+                "width": width,
+                "height": height,
+            }
+        )
 
         for obj in root.findall("object"):
             cls_name = obj.findtext("name")
@@ -107,14 +126,16 @@ def convert_voc_to_coco(
             if w <= 0 or h <= 0:
                 continue
 
-            annotations.append({
-                "id": ann_id,
-                "image_id": img_id,
-                "category_id": class_to_id[cls_name],
-                "bbox": [xmin, ymin, w, h],
-                "area": w * h,
-                "iscrowd": difficult,
-            })
+            annotations.append(
+                {
+                    "id": ann_id,
+                    "image_id": img_id,
+                    "category_id": class_to_id[cls_name],
+                    "bbox": [xmin, ymin, w, h],
+                    "area": w * h,
+                    "iscrowd": difficult,
+                }
+            )
             ann_id += 1
 
         img_id += 1
@@ -136,11 +157,17 @@ def convert_voc_to_coco(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Convert Pascal VOC annotations to COCO JSON format")
-    parser.add_argument("--voc-dir", type=str, required=True, help="Path to VOC directory (e.g. VOCdevkit/VOC2007)")
+    parser = argparse.ArgumentParser(
+        description="Convert Pascal VOC annotations to COCO JSON format"
+    )
+    parser.add_argument(
+        "--voc-dir", type=str, required=True, help="Path to VOC directory (e.g. VOCdevkit/VOC2007)"
+    )
     parser.add_argument("--out", type=str, required=True, help="Output JSON path")
     parser.add_argument("--split", type=str, default=None, help="Optional ImageSets split txt file")
-    parser.add_argument("--include-difficult", action="store_true", help="Include difficult annotations")
+    parser.add_argument(
+        "--include-difficult", action="store_true", help="Include difficult annotations"
+    )
     return parser.parse_args()
 
 
