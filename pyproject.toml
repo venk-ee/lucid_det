@@ -3,6 +3,7 @@ name = "lucid-det"
 version = "0.1.0"
 description = "Modular object detection framework (YOLOv1, YOLOX, RTMDet)"
 readme = "README.md"
+license = { text = "Apache-2.0" }
 requires-python = ">=3.10"
 dependencies = [
   "torch>=2.0.0",
