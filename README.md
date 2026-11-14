@@ -1,5 +1,12 @@
 # LucidDet
 
+[![CI](https://github.com/venk-ee/lucid_det/actions/workflows/ci.yml/badge.svg)](https://github.com/venk-ee/lucid_det/actions/workflows/ci.yml)
+[![CodeRabbit Reviews](https://img.shields.io/coderabbit/prs/github/venk-ee/lucid_det?label=Reviewed%20by%20CodeRabbit&logo=coderabbit)](https://coderabbit.ai)
+[![Dependabot](https://img.shields.io/badge/Dependabot-active-025E8C?logo=dependabot&logoColor=white)](https://github.com/venk-ee/lucid_det/security/dependabot)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+
 A clean, modular, pure PyTorch object detection library unifying **RTMDet**, **YOLOX**, and **YOLOv1** with **zero OpenMMLab / MMCV runtime dependencies**.
 
 Designed with 1:1 modular architectural parity, flat package hierarchy, typed dataclass configs, and pure PyTorch components.
