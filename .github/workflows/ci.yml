@@ -31,9 +31,12 @@ jobs:
       - name: Check lint rules (Ruff)
         run: uvx ruff check .
 
-      # --- ML Detector Sanity Checks ---
+      # --- ML Detector Sanity & Unit Tests ---
       - name: Sync dependencies from lockfile
         run: uv sync --frozen
 
       - name: Run 3-in-1 Detector Sanity Suite
         run: uv run python tools/sanity.py
+
+      - name: Run PyTest Test Suite
+        run: uv run pytest

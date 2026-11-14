@@ -97,10 +97,10 @@ def unletterbox_boxes_xyxy(
     out[:, 1] = (out[:, 1] - pad_top) / scale
     out[:, 3] = (out[:, 3] - pad_top) / scale
 
-    out[:, 0].clamp_(0, orig_w)
-    out[:, 2].clamp_(0, orig_w)
-    out[:, 1].clamp_(0, orig_h)
-    out[:, 3].clamp_(0, orig_h)
+    out[:, 0].clamp_(0.0, float(orig_w))
+    out[:, 2].clamp_(0.0, float(orig_w))
+    out[:, 1].clamp_(0.0, float(orig_h))
+    out[:, 3].clamp_(0.0, float(orig_h))
     return out
 
 
@@ -191,7 +191,19 @@ def mixup_augment(
 
 
 class DetectionTransform:
-    """Albumentations wrapper returning (img_tensor, gt_boxes_xyxy, gt_labels)."""
+    """
+    Wrapper around an Albumentations Compose pipeline for object detection.
+
+    Expects:
+        - image: np.ndarray (H, W, 3) in RGB uint8
+        - bboxes: Sequence of COCO format [x, y, w, h]
+        - labels: Sequence of class labels (0-indexed int)
+
+    Returns:
+        - img: torch.Tensor [3, H, W]
+        - gt_boxes: torch.Tensor [N, 4] in xyxy format
+        - gt_labels: torch.Tensor [N] int64
+    """
 
     def __init__(self, pipeline: Any) -> None:
         self.pipeline = pipeline
@@ -203,8 +215,9 @@ class DetectionTransform:
         labels: Sequence[int],
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         res = self.pipeline(image=image, bboxes=bboxes, labels=labels)
-        boxes_xyxy = [[x, y, x + w, y + h] for x, y, w, h in res["bboxes"]]
 
+        # Convert COCO [x, y, w, h] to [x1, y1, x2, y2]
+        boxes_xyxy = [[x, y, x + w, y + h] for x, y, w, h in res["bboxes"]]
         if len(boxes_xyxy) > 0:
             gt_boxes = torch.tensor(boxes_xyxy, dtype=torch.float32).reshape(-1, 4)
             gt_labels = torch.as_tensor([int(lbl) for lbl in res["labels"]], dtype=torch.int64)
@@ -220,36 +233,80 @@ class DetectionTransform:
 
 
 def build_det_transform(
-    img_size: Union[int, Tuple[int, int]] = 640,
+    img_size: Union[int, Tuple[int, int], Sequence[int]] = 640,
     pad_val: int = 114,
     mean: Tuple[float, float, float] = (0.485, 0.456, 0.406),
     std: Tuple[float, float, float] = (0.229, 0.224, 0.225),
     is_train: bool = True,
     hflip_prob: float = 0.5,
+    vflip_prob: float = 0.5,
     affine_prob: float = 0.5,
+    color_jitter_prob: float = 0.5,
+    brightness_contrast_prob: float = 0.5,
+    clahe_prob: float = 0.3,
+    motion_blur_prob: float = 0.2,
 ) -> DetectionTransform:
-    """Build Albumentations detection transform pipeline."""
+    """
+    Build an Albumentations detection pipeline based on training/evaluation hyperparameters.
+
+    Args:
+        img_size: Target resolution (int or tuple/sequence).
+        pad_val: Padding value for letterboxing.
+        mean: Normalization RGB mean.
+        std: Normalization RGB standard deviation.
+        is_train: Whether to include data augmentations.
+        hflip_prob: Probability of horizontal flip.
+        vflip_prob: Probability of vertical flip.
+        affine_prob: Probability of random affine transformation.
+        color_jitter_prob: Probability of color jitter.
+        brightness_contrast_prob: Probability of random brightness/contrast.
+        clahe_prob: Probability of CLAHE contrast enhancement.
+        motion_blur_prob: Probability of motion blur.
+
+    Returns:
+        DetectionTransform instance.
+    """
     if not HAS_ALBUMENTATIONS:
         raise ImportError("albumentations is required for build_det_transform.")
 
-    h, w = (img_size, img_size) if isinstance(img_size, int) else img_size
-
     transforms_list = []
-    if is_train:
-        transforms_list.extend(
-            [
-                A.HorizontalFlip(p=hflip_prob),
-                A.Affine(
-                    scale=(0.8, 1.2),
-                    translate_percent=(-0.05, 0.05),
-                    border_mode=0,
-                    fill=(pad_val, pad_val, pad_val),
-                    p=affine_prob,
-                ),
-                A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, p=0.5),
-            ]
-        )
 
+    if is_train:
+        train_augs = [
+            A.HorizontalFlip(p=hflip_prob),
+            A.VerticalFlip(p=vflip_prob),
+            A.Affine(
+                scale=(0.75, 1.25),
+                rotate=(-15, 15),
+                translate_percent=(-0.0625, 0.0625),
+                keep_ratio=True,
+                border_mode=0,
+                fill=(pad_val, pad_val, pad_val),
+                p=affine_prob,
+            ),
+            A.ColorJitter(p=color_jitter_prob),
+            A.RandomBrightnessContrast(
+                brightness_limit=0.2,
+                contrast_limit=0.2,
+                p=brightness_contrast_prob,
+            ),
+            A.CLAHE(
+                clip_limit=2.0,
+                tile_grid_size=(8, 8),
+                p=clahe_prob,
+            ),
+            A.MotionBlur(
+                blur_limit=5,
+                p=motion_blur_prob,
+            ),
+        ]
+        transforms_list.extend([t for t in train_augs if t.p > 0])
+
+    h, w = (
+        (img_size, img_size) if isinstance(img_size, int) else (int(img_size[0]), int(img_size[1]))
+    )
+
+    # Resize & Letterbox (PadIfNeeded)
     transforms_list.extend(
         [
             A.LongestMaxSize(max_size=max(h, w)),
@@ -274,4 +331,5 @@ def build_det_transform(
             clip=True,
         ),
     )
+
     return DetectionTransform(pipeline)
