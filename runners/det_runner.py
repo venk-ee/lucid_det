@@ -11,6 +11,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from datasets.utils import scale_boxes
+
 
 def save_checkpoint(state: Dict[str, Any], path: str) -> None:
     """Save training checkpoint atomically."""
@@ -184,21 +186,32 @@ def val_one_epoch(
                 batch_dets = getattr(outputs, "detections")
 
             if batch_dets is not None:
-                for img_id, det in zip(img_ids, batch_dets):
+                img_h, img_w = images.shape[-2:]
+                ori_shapes = (
+                    batch.get("ori_shapes", [(img_h, img_w)] * len(images))
+                    if isinstance(batch, dict)
+                    else [(img_h, img_w)] * len(images)
+                )
+                label2cat = getattr(evaluator, "label2cat", {}) if evaluator is not None else {}
+
+                for img_id, det, ori_shape in zip(img_ids, batch_dets, ori_shapes):
                     boxes = det["boxes"]
                     scores = det["scores"]
                     labels = det["labels"]
+                    if boxes.numel() > 0:
+                        boxes = scale_boxes(boxes, (img_h, img_w), ori_shape)
+
                     for b, s, lbl in zip(boxes, scores, labels):
                         x1, y1, x2, y2 = b.tolist()
                         img_id_val = (
                             int(img_id) if not hasattr(img_id, "item") else int(img_id.item())
                         )
+                        lbl_val = int(lbl.item()) if hasattr(lbl, "item") else int(lbl)
+                        cat_id = label2cat.get(lbl_val, lbl_val + 1)
                         all_predictions.append(
                             {
                                 "image_id": img_id_val,
-                                "category_id": int(lbl.item())
-                                if hasattr(lbl, "item")
-                                else int(lbl),
+                                "category_id": cat_id,
                                 "bbox": [x1, y1, max(0.0, x2 - x1), max(0.0, y2 - y1)],
                                 "score": float(s.item()) if hasattr(s, "item") else float(s),
                             }

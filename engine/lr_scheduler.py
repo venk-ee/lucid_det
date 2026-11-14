@@ -4,6 +4,7 @@ Implements Linear Warmup followed by Cosine Annealing.
 """
 
 import math
+from typing import Callable
 
 import torch
 from torch.optim.lr_scheduler import LambdaLR
@@ -13,7 +14,7 @@ def get_warmup_cosine_lambda(
     total_steps: int,
     warmup_steps: int,
     min_lr_ratio: float = 0.05,
-) -> callable:
+) -> Callable[[int], float]:
     """Returns a lambda multiplier for Linear Warmup + Cosine Annealing."""
 
     def lr_lambda(step: int) -> float:

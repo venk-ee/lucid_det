@@ -229,6 +229,11 @@ class DetectionTransform:
         if isinstance(img_tensor, np.ndarray):
             img_tensor = torch.from_numpy(img_tensor).permute(2, 0, 1).float() / 255.0
 
+        if gt_boxes.numel() > 0:
+            h, w = img_tensor.shape[-2:]
+            gt_boxes[:, [0, 2]].clamp_(0.0, float(w))
+            gt_boxes[:, [1, 3]].clamp_(0.0, float(h))
+
         return img_tensor, gt_boxes, gt_labels
 
 

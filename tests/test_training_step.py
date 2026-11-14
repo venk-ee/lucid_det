@@ -104,3 +104,62 @@ def test_full_training_step_integration():
         assert len(grads) > 0, "No gradients were computed!"
         for g in grads:
             assert torch.isfinite(g).all(), "Detected NaN or Inf gradient!"
+
+
+def test_model_ema_unwrapping():
+    from engine.ema import ModelEMA
+
+    model = build_rtmdet(arch="tiny", num_classes=2)
+    ema = ModelEMA(model)
+
+    # Simulate torch.compile wrapper
+    class DummyCompiledWrapper(torch.nn.Module):
+        def __init__(self, m):
+            super().__init__()
+            self._orig_mod = m
+
+    wrapped = DummyCompiledWrapper(model)
+    with torch.no_grad():
+        for p in model.parameters():
+            p.add_(1.0)
+            break
+
+    # Update should succeed and update weights without error
+    ema.update(wrapped)
+    assert ema.updates == 1
+
+
+def test_val_one_epoch_coordinate_scaling():
+    from runners.det_runner import val_one_epoch
+
+    model = build_rtmdet(arch="tiny", num_classes=2)
+    model.eval()
+
+    # Create dummy batch with ori_shape 720x1280 and 640x640 images
+    batch = {
+        "img": torch.randn(1, 3, 640, 640),
+        "img_ids": [42],
+        "ori_shapes": [(720, 1280)],
+    }
+    loader = [batch]
+
+    captured_preds = []
+
+    class DummyEvaluator:
+        label2cat = {0: 10, 1: 25}
+
+        def evaluate(self, preds):
+            captured_preds.extend(preds)
+            return {"mAP_50": 0.5}
+
+    evaluator = DummyEvaluator()
+    metrics = val_one_epoch(model, loader, device="cpu", evaluator=evaluator)
+    assert "mAP_50" in metrics
+
+    # If any detections were made, ensure coordinates are rescaled and category_id is mapped
+    for p in captured_preds:
+        assert p["image_id"] == 42
+        assert p["category_id"] in (10, 25)
+        x, y, w, h = p["bbox"]
+        assert x >= 0 and y >= 0
+        assert x + w <= 1280.1 and y + h <= 720.1

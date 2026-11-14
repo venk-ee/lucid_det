@@ -41,13 +41,17 @@ class ModelEMA:
         self.updates += 1
         d = self.decay * (1.0 - math.exp(-self.updates / self.tau))
 
-        model_params = dict(model.named_parameters())
+        # Safely unwrap DDP / DataParallel and torch.compile wrappers
+        m = model.module if hasattr(model, "module") else model
+        m = getattr(m, "_orig_mod", m)
+
+        model_params = dict(m.named_parameters())
         for name, ema_p in self.ema.named_parameters():
             if name in model_params:
                 model_p = model_params[name]
                 ema_p.data.mul_(d).add_(model_p.data, alpha=1.0 - d)
 
-        model_buffers = dict(model.named_buffers())
+        model_buffers = dict(m.named_buffers())
         for name, ema_b in self.ema.named_buffers():
             if name in model_buffers:
                 ema_b.copy_(model_buffers[name])
