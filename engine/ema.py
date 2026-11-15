@@ -28,7 +28,9 @@ class ModelEMA:
         decay: float = 0.9998,
         tau: float = 2000.0,
     ) -> None:
-        self.ema = copy.deepcopy(model).eval()
+        m = model.module if hasattr(model, "module") else model
+        m = getattr(m, "_orig_mod", m)
+        self.ema = copy.deepcopy(m).eval()
         for p in self.ema.parameters():
             p.requires_grad_(False)
         self.decay = decay

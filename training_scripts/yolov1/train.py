@@ -201,8 +201,11 @@ def run_training(cfg: TrainConfig) -> None:
     best_loss = float("inf")
     best_metric = 0.0
 
-    if getattr(cfg.optim, "resume", None) and os.path.exists(cfg.optim.resume):
-        ckpt = load_checkpoint(cfg.optim.resume, device=device)
+    resume_path = getattr(cfg.optim, "resume", None)
+    if resume_path:
+        if not os.path.exists(resume_path):
+            raise FileNotFoundError(f"Resume checkpoint not found: {resume_path}")
+        ckpt = load_checkpoint(resume_path, device=device)
         if ckpt is not None:
             model.load_state_dict(ckpt["model"])
             if ema is not None and "ema" in ckpt and ckpt["ema"] is not None:
@@ -215,7 +218,7 @@ def run_training(cfg: TrainConfig) -> None:
                 and ckpt["lr_scheduler"] is not None
             ):
                 lr_scheduler.load_state_dict(ckpt["lr_scheduler"])
-            if scaler is not None and "scaler" in ckpt and ckpt["scaler"] is not None:
+            if scaler is not None and ckpt.get("scaler"):
                 scaler.load_state_dict(ckpt["scaler"])
             start_epoch = ckpt.get("epoch", 0) + 1
             current_step = ckpt.get("step", 0)
@@ -225,6 +228,7 @@ def run_training(cfg: TrainConfig) -> None:
                 f"--> Resumed successfully from {cfg.optim.resume} "
                 f"at epoch {start_epoch}, step {current_step}"
             )
+            del ckpt
 
     for epoch in range(start_epoch, cfg.optim.epochs + 1):
         mean_loss, current_step = train_one_epoch(
@@ -296,8 +300,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--num-boxes",
         type=int,
+        choices=[2],
         default=None,
-        help="Override boxes per cell B (default: 2)",
+        help="Override boxes per cell B (default: 2, currently only B=2 supported by YOLOv1Loss)",
     )
     return parser.parse_args()
 
@@ -309,5 +314,9 @@ if __name__ == "__main__":
     if args.split_size is not None:
         config.model.split_size = args.split_size
     if args.num_boxes is not None:
+        if args.num_boxes != 2:
+            raise ValueError(
+                f"YOLOv1Loss currently supports only --num-boxes 2, got {args.num_boxes}"
+            )
         config.model.num_boxes = args.num_boxes
     run_training(config)

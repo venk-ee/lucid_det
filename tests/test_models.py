@@ -56,3 +56,10 @@ def test_forward_pass_training_and_eval() -> None:
     with torch.no_grad():
         eval_out = model(x)
     assert hasattr(eval_out, "detections")
+
+
+def test_yolov1_positional_arguments_compatibility() -> None:
+    # Positional signature: num_classes, score_thresh, nms_thresh, max_num, split_size, num_boxes, S, B
+    model = YOLOv1(20, 0.05, 0.65, 100, 7, 2, 7, 2)
+    assert model.split_size == 7
+    assert model.num_boxes == 2

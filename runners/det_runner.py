@@ -196,7 +196,12 @@ def val_one_epoch(
                     if isinstance(batch, dict)
                     else [(img_h, img_w)] * len(images)
                 )
-                label2cat = getattr(evaluator, "label2cat", {}) if evaluator is not None else {}
+                dataset = getattr(dataloader, "dataset", None)
+                label2cat = getattr(dataset, "label2cat", None)
+                if not label2cat and evaluator is not None:
+                    label2cat = getattr(evaluator, "label2cat", {})
+                if not label2cat:
+                    label2cat = {}
 
                 for img_id, det, ori_shape in zip(img_ids, batch_dets, ori_shapes):
                     boxes = det["boxes"]

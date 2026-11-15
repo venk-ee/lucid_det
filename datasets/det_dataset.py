@@ -103,8 +103,8 @@ class DetDataset(Dataset):
             if len(bboxes) > 0:
                 boxes_xyxy = [[x, y, x + w, y + h] for x, y, w, h in bboxes]
                 gt_boxes = torch.tensor(boxes_xyxy, dtype=torch.float32)
-                gt_boxes[:, [0, 2]].clamp_(0.0, float(orig_w))
-                gt_boxes[:, [1, 3]].clamp_(0.0, float(orig_h))
+                gt_boxes[:, 0::2].clamp_(0.0, float(orig_w))
+                gt_boxes[:, 1::2].clamp_(0.0, float(orig_h))
                 gt_labels = torch.tensor(labels, dtype=torch.int64)
             else:
                 gt_boxes = torch.empty((0, 4), dtype=torch.float32)

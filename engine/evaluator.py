@@ -4,7 +4,7 @@ Computes standard COCO bbox mAP (AP50:95, AP50, AP75, AP_s, AP_m, AP_l).
 """
 
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 try:
     import faster_coco_eval
@@ -88,10 +88,10 @@ class COCOEvaluator:
     Evaluator wrapper holding preloaded COCO ground truth.
     """
 
-    def __init__(self, ann_file: str) -> None:
+    def __init__(self, ann_file: str, cat_ids: Optional[Sequence[int]] = None) -> None:
         self.ann_file = ann_file
         self.coco_gt = COCO(ann_file)
-        self.cat_ids = sorted(self.coco_gt.getCatIds())
+        self.cat_ids = sorted(cat_ids) if cat_ids is not None else sorted(self.coco_gt.getCatIds())
         self.label2cat: Dict[int, int] = {i: cid for i, cid in enumerate(self.cat_ids)}
 
     def evaluate(self, preds: List[Dict[str, Any]]) -> Dict[str, float]:

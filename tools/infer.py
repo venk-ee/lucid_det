@@ -33,6 +33,19 @@ def extract_checkpoint_payload(
     data_cfg = ckpt.get("data_config") if isinstance(ckpt, dict) else None
     family_hint = ckpt.get("family") if isinstance(ckpt, dict) else None
 
+    # Fallback to CheckpointEnvelope metadata if present (e.g. from tools/convert_weights.py)
+    meta = ckpt.get("meta") if isinstance(ckpt, dict) else None
+    if isinstance(meta, dict):
+        if not family_hint:
+            family_hint = meta.get("family")
+        if not model_cfg and meta.get("arch"):
+            model_cfg = {"arch": meta.get("arch")}
+        if not data_cfg:
+            data_cfg = {
+                "num_classes": meta.get("num_classes", 80),
+                "img_size": meta.get("input_size", (640, 640)),
+            }
+
     if isinstance(ckpt, dict):
         if "ema" in ckpt and isinstance(ckpt["ema"], dict):
             ema_val = ckpt["ema"]
@@ -191,7 +204,13 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Override boxes per cell B for YOLOv1 (default: from checkpoint, or 2)",
     )
-    parser.add_argument("--conf", type=float, default=0.3, help="Confidence score threshold")
+    parser.add_argument(
+        "--conf",
+        "--thr",
+        type=float,
+        default=0.3,
+        help="Confidence score threshold (aliases: --conf, --thr)",
+    )
     parser.add_argument(
         "--allow-partial-weights",
         action="store_true",
@@ -222,8 +241,10 @@ def main() -> None:
         raise FileNotFoundError(f"Could not load image from: {args.img}")
     orig_h, orig_w = orig_bgr.shape[:2]
 
-    # 2. Extract checkpoint and metadata
-    state_dict, model_cfg, data_cfg, family_hint = extract_checkpoint_payload(args.weights, device)
+    # 2. Extract checkpoint and metadata on CPU to prevent redundant GPU memory allocation
+    state_dict, model_cfg, data_cfg, family_hint = extract_checkpoint_payload(
+        args.weights, torch.device("cpu")
+    )
 
     # 3. Build model and load weights
     model = build_family_model(
@@ -248,9 +269,12 @@ def main() -> None:
     letterboxed, scale, pad_left, pad_top, _, _ = letterbox_image(
         img_rgb, (img_size, img_size), color=(114, 114, 114)
     )
-    inp = (
-        torch.from_numpy(letterboxed).permute(2, 0, 1).contiguous().float().unsqueeze(0).to(device)
-    )
+    # Normalize input matching training pipeline (ImageNet mean & std)
+    inp = torch.from_numpy(letterboxed).permute(2, 0, 1).contiguous().float() / 255.0
+    mean_tensor = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float32).view(3, 1, 1)
+    std_tensor = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float32).view(3, 1, 1)
+    inp = (inp - mean_tensor) / std_tensor
+    inp = inp.unsqueeze(0).to(device)
 
     # 5. Inference
     with torch.no_grad():

@@ -69,3 +69,21 @@ def test_dataset_without_transform_returns_tensors() -> None:
     assert sample["gt_boxes"].shape[1] == 4
     assert sample["gt_boxes"].dtype == torch.float32
     assert sample["gt_labels"].dtype == torch.int64
+
+
+def test_dataset_clamps_out_of_bounds_boxes() -> None:
+    dataset = DetDataset(
+        root=str(COCO8_ROOT),
+        ann_file=str(COCO8_ANN),
+        transform=None,
+        num_classes=80,
+    )
+    img_id = dataset.ids[0]
+    dataset.anns[img_id] = [([-20.0, -15.0, 2000.0, 2000.0], 0)]
+    sample = dataset[0]
+    orig_h, orig_w = sample["ori_shape"]
+    boxes = sample["gt_boxes"]
+    assert boxes[0, 0].item() == 0.0
+    assert boxes[0, 1].item() == 0.0
+    assert boxes[0, 2].item() <= float(orig_w)
+    assert boxes[0, 3].item() <= float(orig_h)

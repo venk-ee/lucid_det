@@ -59,9 +59,9 @@ def build_yolov1(
     max_num: int = 100,
     split_size: int = 7,
     num_boxes: int = 2,
-    img_size: float = 640.0,
     S: Optional[int] = None,
     B: Optional[int] = None,
+    img_size: float = 640.0,
     **kwargs: Any,
 ) -> YOLOv1:
     """Build a complete YOLOv1 detector."""

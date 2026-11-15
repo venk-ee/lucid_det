@@ -8,6 +8,7 @@ import torch
 
 from datasets.utils import scale_boxes
 from transforms.det_transforms import (
+    DetectionTransform,
     build_det_transform,
 )
 
@@ -152,3 +153,23 @@ def test_detection_transform_zero_annotations():
     assert gt_labels.shape == (0,)
     assert gt_boxes.dtype == torch.float32
     assert gt_labels.dtype == torch.int64
+
+
+def test_detection_transform_clamps_out_of_bounds():
+    """Verify custom pipeline box coordinates exceeding bounds are clamped."""
+
+    class DummyPipeline:
+        def __call__(self, image: np.ndarray, bboxes: list, labels: list):
+            return {
+                "image": image,
+                "bboxes": [[-15.0, -10.0, 150.0, 120.0]],
+                "labels": labels,
+            }
+
+    transform = DetectionTransform(pipeline=DummyPipeline())
+    dummy_img = np.zeros((100, 100, 3), dtype=np.uint8)
+    _, gt_boxes, _ = transform(dummy_img, [[0, 0, 10, 10]], [0])
+    assert gt_boxes[0, 0].item() == 0.0
+    assert gt_boxes[0, 1].item() == 0.0
+    assert gt_boxes[0, 2].item() <= 100.0
+    assert gt_boxes[0, 3].item() <= 100.0

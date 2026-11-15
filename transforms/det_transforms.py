@@ -233,8 +233,8 @@ class DetectionTransform:
 
         if gt_boxes.numel() > 0:
             h, w = img_tensor.shape[-2:]
-            gt_boxes[:, [0, 2]].clamp_(0.0, float(w))
-            gt_boxes[:, [1, 3]].clamp_(0.0, float(h))
+            gt_boxes[:, 0::2].clamp_(0.0, float(w))
+            gt_boxes[:, 1::2].clamp_(0.0, float(h))
 
         return img_tensor, gt_boxes, gt_labels
 

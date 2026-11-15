@@ -345,3 +345,50 @@ def test_checkpoint_resume_behavior(tmp_path: Path) -> None:
     assert resumed_ckpt["step"] == 15
     assert resumed_ckpt["best_loss"] == 1.45
     assert resumed_ckpt["best_metric"] == 0.35
+
+
+def test_model_ema_unwraps_wrapped_model() -> None:
+    class DummyWrapper(torch.nn.Module):
+        def __init__(self, inner: torch.nn.Module) -> None:
+            super().__init__()
+            self.module = inner
+
+        def forward(self, *args, **kwargs):
+            return self.module(*args, **kwargs)
+
+    raw_model = torch.nn.Linear(10, 5)
+    wrapped = DummyWrapper(raw_model)
+    ema = ModelEMA(wrapped, decay=0.9)
+
+    # Shadow should not have 'module.' prefix in parameter names
+    ema_param_names = list(dict(ema.module.named_parameters()).keys())
+    assert "weight" in ema_param_names
+    assert "module.weight" not in ema_param_names
+
+    # Update should update weights without skipping
+    with torch.no_grad():
+        raw_model.weight.fill_(10.0)
+    ema.update(wrapped)
+    assert not torch.allclose(ema.module.weight, torch.zeros_like(ema.module.weight))
+
+
+def test_infer_payload_reads_converted_envelope(tmp_path: Path) -> None:
+    from tools.infer import extract_checkpoint_payload
+
+    dummy_sd = {"backbone.stem.conv.weight": torch.randn(8, 3, 3, 3)}
+    envelope_meta = {
+        "family": "rtmdet",
+        "arch": "s",
+        "num_classes": 80,
+        "input_size": (640, 640),
+    }
+    ckpt_path = tmp_path / "converted_ckpt.pth"
+    torch.save({"state_dict": dummy_sd, "meta": envelope_meta}, ckpt_path)
+
+    sd, model_cfg, data_cfg, family = extract_checkpoint_payload(
+        str(ckpt_path), torch.device("cpu")
+    )
+    assert family == "rtmdet"
+    assert model_cfg == {"arch": "s"}
+    assert data_cfg["num_classes"] == 80
+    assert "backbone.stem.conv.weight" in sd
