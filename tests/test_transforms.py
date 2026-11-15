@@ -1,6 +1,5 @@
 """
 Unit tests for detection transforms and pure PyTorch coordinate operations.
-Designed with parametrization and mathematical invariance checks.
 """
 
 import numpy as np
@@ -11,8 +10,6 @@ from datasets.utils import scale_boxes
 from transforms.det_transforms import (
     build_det_transform,
 )
-
-# --- 1. Type Safety & Defensive Guardrails ---
 
 
 def test_scale_boxes_type_rejection():
@@ -36,14 +33,11 @@ def test_scale_boxes_non_positive_dimensions(invalid_shape):
 
 
 def test_scale_boxes_empty_tensors():
-    """Gracefully pass through empty tensors without memory reallocation."""
+    """Pass through empty tensors without error."""
     empty_boxes = torch.empty((0, 4), dtype=torch.float32)
     res = scale_boxes(empty_boxes, (640, 640), (480, 640))
     assert res.shape == (0, 4)
     assert isinstance(res, torch.Tensor)
-
-
-# --- 2. Mathematical Invariance & Parametrized Aspect Ratios ---
 
 
 @pytest.mark.parametrize(
@@ -60,10 +54,7 @@ def test_scale_boxes_empty_tensors():
 )
 @pytest.mark.parametrize("dst_size", [640, 512, (384, 640)])
 def test_scale_boxes_bijective_roundtrip(ori_h, ori_w, dst_size):
-    """
-    Mathematical Invariance: scale_boxes(letterbox(B)) == B.
-    Verifies sub-pixel roundtrip recovery across diverse aspect ratios.
-    """
+    """Verify scale_boxes inverts letterbox across diverse aspect ratios."""
     dst_h, dst_w = (dst_size, dst_size) if isinstance(dst_size, int) else dst_size
 
     # Arbitrary ground truth boxes within original canvas
@@ -93,11 +84,8 @@ def test_scale_boxes_bijective_roundtrip(ori_h, ori_w, dst_size):
     )
 
 
-# --- 3. Boundary Clamping & Batched Tensors ---
-
-
 def test_scale_boxes_boundary_clamping():
-    """Ensure coordinates extending beyond canvas are clamped strictly to [0, W] and [0, H]."""
+    """Ensure coordinates extending beyond canvas are clamped to [0, W] and [0, H]."""
     ori_h, ori_w = 480, 640
     out_of_bounds = torch.tensor(
         [
@@ -117,7 +105,7 @@ def test_scale_boxes_boundary_clamping():
 @pytest.mark.parametrize("batch_size", [1, 2, 4])
 @pytest.mark.parametrize("num_boxes", [1, 10, 50])
 def test_scale_boxes_batched_tensors(batch_size, num_boxes):
-    """Operate seamlessly on higher-dimensional batch tensors [B, N, 4]."""
+    """Test batched tensor inputs [B, N, 4]."""
     batched = torch.randn((batch_size, num_boxes, 4), dtype=torch.float32).abs() * 100
     batched[..., 2] += batched[..., 0] + 10  # Ensure x2 > x1
     batched[..., 3] += batched[..., 1] + 10  # Ensure y2 > y1
@@ -127,9 +115,6 @@ def test_scale_boxes_batched_tensors(batch_size, num_boxes):
     assert isinstance(scaled, torch.Tensor)
     assert scaled[..., 0].min() >= 0.0
     assert scaled[..., 2].max() <= 1280.0
-
-
-# --- 4. Pipeline Execution & Edge Handling ---
 
 
 def test_detection_transform_output_contracts():

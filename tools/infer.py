@@ -1,140 +1,213 @@
 """
-Inference and visualization tool.
-Runs single-image detector inference, performs NMS post-processing,
-unletterboxes coordinates back to original image space, and renders detections.
-
-Example usage:
-    uv run python tools/infer.py --img data/dummy/images/dummy_0000.jpg \
-        --weights work_dirs/exp/last.pth --model rtmdet_tiny --out outputs/vis.jpg
+Deliberately thin inference and visualization CLI.
+Loads checkpoint weights, executes single-image detection, and renders bounding boxes.
+No registries or complex dispatchers: explicitly constructs the requested detector family.
+Supports reading architecture configuration metadata from saved checkpoints.
 """
 
 import argparse
 import os
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
 
 import cv2
 import numpy as np
 import torch
 import torch.nn as nn
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-from models import build_rtmdet, build_yolov1, build_yolox
+from models import YOLOX, RTMDet, YOLOv1
 from transforms import letterbox_image, unletterbox_boxes_xyxy
 
 
-def create_model(model_name: str, num_classes: int) -> nn.Module:
-    """Instantiate detector model architecture matching training configuration."""
-    model_name = model_name.lower().replace("-", "_")
-    if model_name in ("rtmdet_tiny", "rtmdet_t"):
-        return build_rtmdet(arch="tiny", num_classes=num_classes)
-    elif model_name in ("rtmdet_s", "rtmdet"):
-        return build_rtmdet(arch="s", num_classes=num_classes)
-    elif model_name in ("yolox_s", "yolox"):
-        return build_yolox(arch="s", num_classes=num_classes)
-    elif model_name in ("yolov1", "yolo_v1"):
-        return build_yolov1(num_classes=num_classes)
+def extract_checkpoint_payload(
+    weights_path: str, device: torch.device
+) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]], Optional[Dict[str, Any]], Optional[str]]:
+    """Extract model state dict, model_config, data_config, and family from checkpoint."""
+    ckpt = torch.load(weights_path, map_location=device)
+    model_cfg = ckpt.get("model_config") if isinstance(ckpt, dict) else None
+    data_cfg = ckpt.get("data_config") if isinstance(ckpt, dict) else None
+    family_hint = ckpt.get("family") if isinstance(ckpt, dict) else None
+
+    if isinstance(ckpt, dict):
+        if "ema" in ckpt and isinstance(ckpt["ema"], dict):
+            ema_val = ckpt["ema"]
+            # ModelEMA saves {"ema": model.state_dict(), "updates": ..., "decay": ...}
+            sd = (
+                ema_val["ema"] if "ema" in ema_val and isinstance(ema_val["ema"], dict) else ema_val
+            )
+        elif "model" in ckpt and isinstance(ckpt["model"], dict):
+            sd = ckpt["model"]
+        elif "state_dict" in ckpt and isinstance(ckpt["state_dict"], dict):
+            sd = ckpt["state_dict"]
+        else:
+            sd = ckpt
     else:
-        raise ValueError(
-            f"Unknown model architecture: '{model_name}'. Choose from: rtmdet_tiny, rtmdet_s, yolox_s, yolov1"
-        )
+        sd = ckpt
+
+    clean_sd: Dict[str, Any] = {}
+    for k, v in sd.items():
+        clean_k = k[7:] if k.startswith("module.") else k
+        clean_sd[clean_k] = v
+
+    return clean_sd, model_cfg, data_cfg, family_hint
 
 
 def load_weights(
-    model: nn.Module, weights_path: str, device: torch.device
-) -> Tuple[nn.Module, Optional[Dict[str, Any]]]:
-    """
-    Robust checkpoint loader.
-    Handles CheckpointEnvelope metadata, ModelEMA shadow dictionaries,
-    standard training checkpoints, and raw state_dicts.
-    """
-    if not os.path.isfile(weights_path):
-        raise FileNotFoundError(f"Checkpoint file not found: {weights_path}")
-
-    ckpt = torch.load(weights_path, map_location=device, weights_only=False)
-
-    meta = None
-    state_dict = None
-    if isinstance(ckpt, dict):
-        meta = ckpt.get("meta", None)
-        if "ema" in ckpt:
-            ema_data = ckpt["ema"]
-            if isinstance(ema_data, dict) and "ema" in ema_data:
-                state_dict = ema_data["ema"]
-            elif isinstance(ema_data, dict):
-                state_dict = ema_data
-        elif "model" in ckpt:
-            state_dict = ckpt["model"]
-        elif "state_dict" in ckpt:
-            state_dict = ckpt["state_dict"]
-        else:
-            state_dict = ckpt
+    model: nn.Module,
+    state_dict: Dict[str, Any],
+    allow_partial: bool = False,
+) -> nn.Module:
+    """Load state dict into model with missing/unexpected key auditing."""
+    if not allow_partial:
+        model.load_state_dict(state_dict, strict=True)
     else:
-        state_dict = ckpt
-
-    # Clean potential 'module.' prefixes from DataParallel / DDP
-    cleaned_state_dict = {}
-    for k, v in state_dict.items():
-        key = k[7:] if k.startswith("module.") else k
-        cleaned_state_dict[key] = v
-
-    incompatible = model.load_state_dict(cleaned_state_dict, strict=False)
-    if incompatible.missing_keys:
-        print(f"Note: {len(incompatible.missing_keys)} missing keys during weight loading.")
-    if incompatible.unexpected_keys:
-        print(f"Note: {len(incompatible.unexpected_keys)} unexpected keys during weight loading.")
-
-    model.to(device)
-    model.eval()
-    return model, meta
+        incompatible = model.load_state_dict(state_dict, strict=False)
+        if incompatible.missing_keys:
+            print(f"Warning: {len(incompatible.missing_keys)} missing keys during weight loading.")
+        if incompatible.unexpected_keys:
+            print(f"Warning: {len(incompatible.unexpected_keys)} unexpected keys in checkpoint.")
+    return model
 
 
-def get_color(idx: int) -> Tuple[int, int, int]:
-    """Generate distinct pseudo-random color for visualization."""
-    palette = [
-        (255, 56, 56),
-        (255, 157, 151),
-        (255, 112, 31),
-        (255, 178, 29),
-        (207, 210, 49),
-        (72, 249, 10),
-        (146, 204, 23),
-        (61, 219, 134),
-        (26, 147, 52),
-        (0, 212, 187),
-        (44, 153, 168),
-        (0, 194, 255),
-        (52, 69, 147),
-        (100, 115, 255),
-        (0, 24, 236),
-        (132, 56, 255),
-        (82, 0, 133),
-        (203, 56, 255),
-        (255, 149, 200),
-        (255, 55, 199),
-    ]
-    return palette[idx % len(palette)]
+def build_family_model(
+    args: argparse.Namespace,
+    model_cfg: Optional[Dict[str, Any]] = None,
+    data_cfg: Optional[Dict[str, Any]] = None,
+    family_hint: Optional[str] = None,
+) -> nn.Module:
+    """Instantiate detector module, defaulting to checkpoint metadata when available."""
+    family = args.family
+    if family is None:
+        family = family_hint if family_hint is not None else "rtmdet"
+    family = family.lower().strip()
+
+    # Determine num_classes with precedence: CLI flag -> data_cfg -> model_cfg -> default 80
+    num_classes = args.num_classes
+    if num_classes is None:
+        if data_cfg and "num_classes" in data_cfg:
+            num_classes = int(data_cfg["num_classes"])
+        elif model_cfg and "num_classes" in model_cfg:
+            num_classes = int(model_cfg["num_classes"])
+        else:
+            num_classes = 80
+
+    # Determine arch with precedence: CLI flag -> model_cfg -> default 'tiny'
+    arch = args.arch
+    if arch is None:
+        if model_cfg and "arch" in model_cfg:
+            arch = str(model_cfg["arch"])
+        else:
+            arch = "tiny"
+
+    # Determine img_size with precedence: CLI flag -> data_cfg -> 640
+    img_size = args.img_size
+    if img_size is None:
+        if data_cfg and "img_size" in data_cfg:
+            cfg_sz = data_cfg["img_size"]
+            if isinstance(cfg_sz, (list, tuple)):
+                img_size = int(cfg_sz[0])
+            elif isinstance(cfg_sz, (int, float)):
+                img_size = int(cfg_sz)
+        if img_size is None:
+            img_size = 640
+
+    if family == "rtmdet":
+        return RTMDet(
+            arch=arch,
+            num_classes=num_classes,
+            score_thresh=args.conf,
+        )
+    elif family == "yolox":
+        return YOLOX(
+            arch=arch,
+            num_classes=num_classes,
+            score_thresh=args.conf,
+        )
+    elif family == "yolov1":
+        split_size = (
+            args.split_size
+            if args.split_size is not None
+            else (model_cfg.get("split_size", 7) if model_cfg else 7)
+        )
+        num_boxes = (
+            args.num_boxes
+            if args.num_boxes is not None
+            else (model_cfg.get("num_boxes", 2) if model_cfg else 2)
+        )
+        return YOLOv1(
+            num_classes=num_classes,
+            score_thresh=args.conf,
+            split_size=split_size,
+            num_boxes=num_boxes,
+            img_size=float(img_size),
+        )
+    else:
+        raise ValueError(f"Unknown detector family '{family}'. Choose from: rtmdet, yolox, yolov1")
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="LucidDet Inference & Visualization")
-    parser.add_argument("--img", type=str, required=True, help="Path to input image")
-    parser.add_argument("--weights", type=str, required=True, help="Path to checkpoint .pth")
-    parser.add_argument("--model", type=str, default="rtmdet_tiny", help="Model architecture")
+    parser = argparse.ArgumentParser(description="LucidDet Lightweight Inference CLI")
+    parser.add_argument("--img", type=str, required=True, help="Path to input image file")
+    parser.add_argument("--weights", type=str, required=True, help="Path to checkpoint .pth file")
     parser.add_argument(
-        "--out", type=str, default="outputs/vis.jpg", help="Path to save output visualization"
-    )
-    parser.add_argument("--thr", type=float, default=0.3, help="Confidence score threshold")
-    parser.add_argument("--img-size", type=int, default=640, help="Inference resolution")
-    parser.add_argument("--num-classes", type=int, default=80, help="Number of foreground classes")
-    parser.add_argument(
-        "--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu"
+        "--family",
+        type=str,
+        default=None,
+        choices=["rtmdet", "yolox", "yolov1"],
+        help="Detector model family (default: auto-detected from checkpoint, or 'rtmdet')",
     )
     parser.add_argument(
-        "--class-names", type=str, default=None, help="Optional text file with class names"
+        "--arch",
+        type=str,
+        default=None,
+        help="Override architecture scale variant (default: from checkpoint, or 'tiny')",
+    )
+    parser.add_argument(
+        "--img-size",
+        type=int,
+        default=None,
+        help="Inference image resolution (default: from checkpoint, or 640)",
+    )
+    parser.add_argument(
+        "--num-classes",
+        type=int,
+        default=None,
+        help="Override number of classes (default: from checkpoint, or 80)",
+    )
+    parser.add_argument(
+        "--split-size",
+        type=int,
+        default=None,
+        help="Override grid split size S for YOLOv1 (default: from checkpoint, or 7)",
+    )
+    parser.add_argument(
+        "--num-boxes",
+        type=int,
+        default=None,
+        help="Override boxes per cell B for YOLOv1 (default: from checkpoint, or 2)",
+    )
+    parser.add_argument("--conf", type=float, default=0.3, help="Confidence score threshold")
+    parser.add_argument(
+        "--allow-partial-weights",
+        action="store_true",
+        help="Allow missing or unexpected keys when loading weights (default: strict check)",
+    )
+    parser.add_argument(
+        "--out",
+        type=str,
+        default="outputs/vis.jpg",
+        help="Output visualization file path",
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="cuda" if torch.cuda.is_available() else "cpu",
+        help="Execution device ('cuda' or 'cpu')",
     )
     return parser.parse_args()
 
@@ -143,136 +216,99 @@ def main() -> None:
     args = parse_args()
     device = torch.device(args.device)
 
-    # 1. Load image
-    orig_img = cv2.imread(args.img)
-    if orig_img is None:
-        raise FileNotFoundError(f"Failed to read image at: {args.img}")
-    orig_h, orig_w = orig_img.shape[:2]
+    # 1. Read input image
+    orig_bgr = cv2.imread(args.img)
+    if orig_bgr is None:
+        raise FileNotFoundError(f"Could not load image from: {args.img}")
+    orig_h, orig_w = orig_bgr.shape[:2]
 
-    # 2. Build model & load weights
-    model = create_model(args.model, args.num_classes)
-    if hasattr(model, "score_thresh"):
-        model.score_thresh = min(model.score_thresh, args.thr)
-    model, meta = load_weights(model, args.weights, device)
+    # 2. Extract checkpoint and metadata
+    state_dict, model_cfg, data_cfg, family_hint = extract_checkpoint_payload(args.weights, device)
 
-    # 3. Determine color space and normalization from metadata envelope if present
-    color_space = "RGB"
-    mean_vals = (0.485, 0.456, 0.406)
-    std_vals = (0.229, 0.224, 0.225)
+    # 3. Build model and load weights
+    model = build_family_model(
+        args, model_cfg=model_cfg, data_cfg=data_cfg, family_hint=family_hint
+    )
+    model = load_weights(model, state_dict, allow_partial=args.allow_partial_weights)
+    model = model.to(device).eval()
+
+    # 4. Determine image size and preprocess with letterbox
     img_size = args.img_size
+    if img_size is None:
+        if data_cfg and "img_size" in data_cfg:
+            cfg_sz = data_cfg["img_size"]
+            if isinstance(cfg_sz, (list, tuple)):
+                img_size = int(cfg_sz[0])
+            elif isinstance(cfg_sz, (int, float)):
+                img_size = int(cfg_sz)
+        if img_size is None:
+            img_size = 640
 
-    if meta is not None and isinstance(meta, dict):
-        if "color_space" in meta and meta["color_space"]:
-            color_space = str(meta["color_space"]).upper()
-        if "mean" in meta and meta["mean"]:
-            mean_vals = tuple(meta["mean"])
-        if "std" in meta and meta["std"]:
-            std_vals = tuple(meta["std"])
-        if "input_size" in meta and meta["input_size"] and args.img_size == 640:
-            img_size = (
-                meta["input_size"][0]
-                if isinstance(meta["input_size"], (list, tuple))
-                else meta["input_size"]
+    img_rgb = cv2.cvtColor(orig_bgr, cv2.COLOR_BGR2RGB)
+    letterboxed, scale, pad_left, pad_top, _, _ = letterbox_image(
+        img_rgb, (img_size, img_size), color=(114, 114, 114)
+    )
+    inp = (
+        torch.from_numpy(letterboxed).permute(2, 0, 1).contiguous().float().unsqueeze(0).to(device)
+    )
+
+    # 5. Inference
+    with torch.no_grad():
+        output = model(inp, training_override=False)
+        det_output = (
+            output if hasattr(output, "detections") else output.get("detections", [None])[0]
+        )
+        if hasattr(det_output, "detections"):
+            detections = det_output.detections[0]
+        elif isinstance(det_output, list):
+            detections = det_output[0]
+        else:
+            detections = det_output
+
+    boxes = (
+        detections["boxes"].detach().cpu()
+        if isinstance(detections, dict)
+        else detections.boxes.detach().cpu()
+    )
+    scores = (
+        detections["scores"].detach().cpu()
+        if isinstance(detections, dict)
+        else detections.scores.detach().cpu()
+    )
+    labels = (
+        detections["labels"].detach().cpu()
+        if isinstance(detections, dict)
+        else detections.labels.detach().cpu()
+    )
+
+    # 6. Filter and rescale boxes to original image coordinates
+    keep = scores >= args.conf
+    boxes, scores, labels = boxes[keep], scores[keep], labels[keep]
+
+    vis_img = orig_bgr.copy()
+    if len(boxes) > 0:
+        unscaled_boxes = unletterbox_boxes_xyxy(boxes, scale, pad_left, pad_top, orig_w, orig_h)
+        boxes_np = unscaled_boxes.numpy().astype(np.int32)
+        scores_np = scores.numpy()
+        labels_np = labels.numpy().astype(int)
+
+        for (x1, y1, x2, y2), sc, lb in zip(boxes_np, scores_np, labels_np):
+            cv2.rectangle(vis_img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            caption = f"cls {lb}: {sc:.2f}"
+            cv2.putText(
+                vis_img,
+                caption,
+                (x1, max(y1 - 6, 12)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 255, 0),
+                1,
+                cv2.LINE_AA,
             )
 
-    if color_space == "RGB":
-        processed_img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
-    else:
-        processed_img = orig_img.copy()
-
-    # Preprocess image
-    letterboxed, scale, pad_left, pad_top, rw, rh = letterbox_image(
-        processed_img, new_shape=img_size, color=(114, 114, 114)
-    )
-
-    mean_arr = np.array(mean_vals, dtype=np.float32)
-    std_arr = np.array(std_vals, dtype=np.float32)
-    if (
-        (meta is not None and meta.get("family") == "yolox")
-        or args.model.startswith("yolox")
-        or np.any(mean_arr > 1.0)
-    ):
-        inp = (letterboxed.astype(np.float32) - mean_arr) / std_arr
-    else:
-        inp = (letterboxed.astype(np.float32) / 255.0 - mean_arr) / std_arr
-
-    inp_tensor = torch.from_numpy(inp).permute(2, 0, 1).unsqueeze(0).to(device)
-
-    # 4. Model Forward Pass
-    with torch.no_grad():
-        outputs = model(inp_tensor, training_override=False)
-
-    # Extract detections from SingleStageDetector output
-    if isinstance(outputs, dict) and "detections" in outputs:
-        detections = outputs["detections"][0]
-    elif hasattr(outputs, "detections") and getattr(outputs, "detections") is not None:
-        detections = getattr(outputs, "detections")[0]
-    else:
-        raise RuntimeError("Model output did not produce NMS detections.")
-
-    pred_boxes = detections["boxes"]
-    pred_scores = detections["scores"]
-    pred_labels = detections["labels"]
-
-    # 5. Coordinate transformation back to original image resolution
-    orig_boxes = unletterbox_boxes_xyxy(
-        boxes=pred_boxes,
-        scale=scale,
-        pad_left=pad_left,
-        pad_top=pad_top,
-        orig_w=orig_w,
-        orig_h=orig_h,
-    )
-
-    # 6. Confidence Thresholding
-    keep_mask = pred_scores >= args.thr
-    filt_boxes = orig_boxes[keep_mask].cpu().numpy()
-    filt_scores = pred_scores[keep_mask].cpu().numpy()
-    filt_labels = pred_labels[keep_mask].cpu().numpy()
-
-    # Load class names if provided
-    class_names: List[str] = []
-    if args.class_names and os.path.isfile(args.class_names):
-        with open(args.class_names, "r") as f:
-            class_names = [line.strip() for line in f if line.strip()]
-
-    # 7. Render bounding boxes and labels
-    vis = orig_img.copy()
-    num_dets = len(filt_boxes)
-
-    for (x1, y1, x2, y2), score, label_id in zip(filt_boxes, filt_scores, filt_labels):
-        x1_i, y1_i, x2_i, y2_i = int(round(x1)), int(round(y1)), int(round(x2)), int(round(y2))
-        cls_idx = int(label_id)
-        cls_name = class_names[cls_idx] if cls_idx < len(class_names) else f"cls_{cls_idx}"
-        label_text = f"{cls_name} {score:.2f}"
-
-        color = get_color(cls_idx)
-        cv2.rectangle(vis, (x1_i, y1_i), (x2_i, y2_i), color, 2)
-
-        # Draw filled text background
-        (tw, th), baseline = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-        bg_y1 = max(0, y1_i - th - baseline - 4)
-        bg_y2 = y1_i
-        cv2.rectangle(vis, (x1_i, bg_y1), (x1_i + tw + 4, bg_y2), color, -1)
-        cv2.putText(
-            vis,
-            label_text,
-            (x1_i + 2, bg_y2 - baseline),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            (255, 255, 255),
-            1,
-            cv2.LINE_AA,
-        )
-
-    # 8. Save visualization
-    out_dir = os.path.dirname(args.out)
-    if out_dir:
-        os.makedirs(out_dir, exist_ok=True)
-    cv2.imwrite(args.out, vis)
-
-    print(f"Detected {num_dets} objects (threshold={args.thr:.2f})")
-    print(f"Visualization saved to: {args.out}")
+    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
+    cv2.imwrite(args.out, vis_img)
+    print(f"Detected {len(boxes)} objects (conf >= {args.conf}). Saved to: {args.out}")
 
 
 if __name__ == "__main__":

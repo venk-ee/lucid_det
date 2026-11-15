@@ -1,7 +1,7 @@
 """
 Decoupled, dataclass-based model weight converter CLI.
 Converts official pretrained checkpoints (OpenMMLab, Megvii, Darknet) into clean,
-pure-PyTorch LucidDet checkpoints with embedded metadata envelopes and guardrail verification.
+pure-PyTorch LucidDet checkpoints with embedded metadata envelopes and weight validation.
 
 Usage:
     uv run python tools/convert_weights.py --list
@@ -128,7 +128,7 @@ def convert_and_verify_preset(
         clean_sd = converter(raw_sd, preset)
         report.total_weights_converted = len(clean_sd)
 
-        # 3. Guardrail Verification: Build model and test strict loading
+        # 3. Model construction and test strict loading
         builder_fn = getattr(zoo, preset.builder_fn, None)
         if builder_fn is None:
             raise AttributeError(
@@ -158,7 +158,7 @@ def convert_and_verify_preset(
             # Strict load
             model.load_state_dict(clean_sd, strict=True)
 
-            # 4. Guardrail Verification: Forward pass
+            # 4. Model forward pass verification
             model.to(device)
             model.eval()
             h, w = preset.input_size
