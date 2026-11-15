@@ -30,5 +30,6 @@ logs/
 *.swo
 
 # Data
-/data/
+/data/*
+!/data/coco8/
 /coco/
