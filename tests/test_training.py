@@ -387,3 +387,21 @@ def test_infer_payload_reads_converted_envelope(tmp_path: Path) -> None:
     assert model_cfg == {"arch": "s"}
     assert data_cfg["num_classes"] == 80
     assert "backbone.stem.conv.weight" in sd
+
+
+def test_all_detector_configs_support_cooldown() -> None:
+    from training_scripts.common import add_common_training_args, apply_common_training_args
+    from training_scripts.rtmdet.config import TrainConfig as RTMDetConfig
+    from training_scripts.yolov1.config import TrainConfig as YOLOv1Config
+    from training_scripts.yolox.config import TrainConfig as YOLOXConfig
+
+    for config_cls in (RTMDetConfig, YOLOXConfig, YOLOv1Config):
+        cfg = config_cls()
+        assert hasattr(cfg.optim, "cooldown_epochs")
+        assert cfg.optim.cooldown_epochs == 0
+
+        parser = argparse.ArgumentParser()
+        add_common_training_args(parser)
+        args = parser.parse_args(["--cooldown-epochs", "10"])
+        apply_common_training_args(cfg, args)
+        assert cfg.optim.cooldown_epochs == 10

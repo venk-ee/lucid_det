@@ -5,6 +5,7 @@ Direct imports matching modular standards.
 """
 
 import argparse
+import copy
 import os
 import random
 import sys
@@ -86,6 +87,8 @@ def run_training(cfg: TrainConfig) -> None:
     )
 
     train_transform = build_det_transform(img_size=cfg.data.img_size, is_train=True)
+    val_transform = build_det_transform(img_size=cfg.data.img_size, is_train=False)
+
     train_dataset = DetDataset(
         root=train_root,
         ann_file=train_ann,
@@ -102,6 +105,21 @@ def run_training(cfg: TrainConfig) -> None:
         drop_last=False,
     )
 
+    cooldown_loader = None
+    cooldown_epochs = getattr(cfg.optim, "cooldown_epochs", 0)
+    if cooldown_epochs > 0:
+        cooldown_ds = copy.copy(train_dataset)
+        cooldown_ds.transform = val_transform
+        cooldown_loader = DataLoader(
+            cooldown_ds,
+            batch_size=cfg.data.batch_size,
+            shuffle=True,
+            num_workers=cfg.data.num_workers,
+            collate_fn=det_collate,
+            pin_memory=(device.type == "cuda" and cfg.data.pin_memory),
+            drop_last=False,
+        )
+
     val_loader = None
     evaluator = None
     val_root = (
@@ -115,7 +133,6 @@ def run_training(cfg: TrainConfig) -> None:
         else cfg.data.val_ann
     )
     if os.path.exists(val_root) and os.path.exists(val_ann):
-        val_transform = build_det_transform(img_size=cfg.data.img_size, is_train=False)
         val_dataset = DetDataset(
             root=val_root,
             ann_file=val_ann,
@@ -200,10 +217,23 @@ def run_training(cfg: TrainConfig) -> None:
             )
             del ckpt
 
+    cooldown_epoch = (
+        (cfg.optim.epochs - cooldown_epochs + 1) if cooldown_epochs > 0 else cfg.optim.epochs + 1
+    )
+    current_train_loader = (
+        cooldown_loader
+        if (cooldown_loader is not None and start_epoch >= cooldown_epoch)
+        else train_loader
+    )
+
     for epoch in range(start_epoch, cfg.optim.epochs + 1):
+        if epoch == cooldown_epoch and cooldown_loader is not None:
+            print(f"\n[Epoch {epoch}] Augmentation Cool-Down: Switched to clean DataLoader.")
+            current_train_loader = cooldown_loader
+
         mean_loss, current_step = train_one_epoch(
             model=model,
-            dataloader=train_loader,
+            dataloader=current_train_loader,
             optimizer=optimizer,
             loss_fn=loss_fn,
             device=device,

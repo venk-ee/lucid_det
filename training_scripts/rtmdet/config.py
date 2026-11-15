@@ -50,6 +50,7 @@ class OptimConfig:
     use_amp: bool = True
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     warmup_epochs: int = 3
+    cooldown_epochs: int = 0
     min_lr_ratio: float = 0.05
     ema_decay: float = 0.9998
     resume: Optional[str] = None
