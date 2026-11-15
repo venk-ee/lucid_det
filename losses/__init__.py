@@ -92,7 +92,7 @@ def build_box_loss(name: str = "ciou", **kwargs: Any) -> nn.Module:
 from losses.det_loss import det_loss
 from losses.iou_loss import CIoULoss, GIoULoss, IoULoss
 from losses.qfl import QualityFocalLoss
-from losses.yolov1_loss import YOLOv1Loss
+from losses.yolov1_loss import YOLOv1Loss, encode_yolov1_targets
 
 __all__ = [
     "CLS",
@@ -102,6 +102,7 @@ __all__ = [
     "CIoULoss",
     "IoULoss",
     "YOLOv1Loss",
+    "encode_yolov1_targets",
     "det_loss",
     "register_cls_loss",
     "register_box_loss",

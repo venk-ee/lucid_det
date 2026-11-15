@@ -16,7 +16,7 @@ from datasets.det_dataset import DetDataset, det_collate
 from engine.ema import ModelEMA
 from engine.lr_scheduler import build_lr_scheduler
 from losses.det_loss import det_loss
-from losses.yolov1_loss import YOLOv1Loss
+from losses.yolov1_loss import YOLOv1Loss, encode_yolov1_targets
 from models import YOLOX, RTMDet, YOLOv1
 from runners.det_runner import load_checkpoint, save_checkpoint
 from tools.infer import build_family_model, extract_checkpoint_payload, load_weights
@@ -131,19 +131,14 @@ def test_yolov1_training_step() -> None:
     outputs = model(imgs, training_override=True)
 
     # Build cell-scaled YOLOv1 targets matrix
-    b_size = len(gt_boxes)
-    targets_matrix = torch.zeros((b_size, S, S, num_classes + 5), device=device)
-    for b_i in range(b_size):
-        for box, lbl in zip(gt_boxes[b_i], gt_labels[b_i]):
-            x1, y1, x2, y2 = box.tolist()
-            cx, cy = (x1 + x2) / (2.0 * img_size), (y1 + y2) / (2.0 * img_size)
-            w, h = (x2 - x1) / img_size, (y2 - y1) / img_size
-            ci, cj = min(int(cy * S), S - 1), min(int(cx * S), S - 1)
-            targets_matrix[b_i, ci, cj, int(lbl.item())] = 1.0
-            targets_matrix[b_i, ci, cj, num_classes] = 1.0
-            targets_matrix[b_i, ci, cj, num_classes + 1 : num_classes + 5] = torch.tensor(
-                [cx * S - cj, cy * S - ci, w * S, h * S], device=device
-            )
+    targets_matrix = encode_yolov1_targets(
+        gt_boxes=gt_boxes,
+        gt_labels=gt_labels,
+        split_size=S,
+        num_classes=num_classes,
+        img_size=img_size,
+        device=device,
+    )
 
     loss_fn = YOLOv1Loss(split_size=S, num_boxes=2, num_classes=num_classes)
     loss, parts = loss_fn(outputs, targets_matrix)

@@ -87,6 +87,19 @@ def load_weights(
     return model
 
 
+def resolve_img_size(cli_size: Optional[int], data_cfg: Optional[Dict[str, Any]]) -> int:
+    """Resolve input resolution with precedence: CLI flag -> data_cfg -> default 640."""
+    if cli_size is not None:
+        return cli_size
+    if data_cfg and "img_size" in data_cfg:
+        cfg_sz = data_cfg["img_size"]
+        if isinstance(cfg_sz, (list, tuple)):
+            return int(cfg_sz[0])
+        elif isinstance(cfg_sz, (int, float)):
+            return int(cfg_sz)
+    return 640
+
+
 def build_family_model(
     args: argparse.Namespace,
     model_cfg: Optional[Dict[str, Any]] = None,
@@ -117,17 +130,7 @@ def build_family_model(
         else:
             arch = "tiny"
 
-    # Determine img_size with precedence: CLI flag -> data_cfg -> 640
-    img_size = args.img_size
-    if img_size is None:
-        if data_cfg and "img_size" in data_cfg:
-            cfg_sz = data_cfg["img_size"]
-            if isinstance(cfg_sz, (list, tuple)):
-                img_size = int(cfg_sz[0])
-            elif isinstance(cfg_sz, (int, float)):
-                img_size = int(cfg_sz)
-        if img_size is None:
-            img_size = 640
+    img_size = resolve_img_size(args.img_size, data_cfg)
 
     if family == "rtmdet":
         return RTMDet(
@@ -254,16 +257,7 @@ def main() -> None:
     model = model.to(device).eval()
 
     # 4. Determine image size and preprocess with letterbox
-    img_size = args.img_size
-    if img_size is None:
-        if data_cfg and "img_size" in data_cfg:
-            cfg_sz = data_cfg["img_size"]
-            if isinstance(cfg_sz, (list, tuple)):
-                img_size = int(cfg_sz[0])
-            elif isinstance(cfg_sz, (int, float)):
-                img_size = int(cfg_sz)
-        if img_size is None:
-            img_size = 640
+    img_size = resolve_img_size(args.img_size, data_cfg)
 
     img_rgb = cv2.cvtColor(orig_bgr, cv2.COLOR_BGR2RGB)
     letterboxed, scale, pad_left, pad_top, _, _ = letterbox_image(

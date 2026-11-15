@@ -3,10 +3,48 @@ YOLOv1 Multi-Task SSE Loss.
 Computes coordinate regression, confidence, and classification loss over SxS grid cells.
 """
 
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Dict, Sequence, Tuple, Union
 
 import torch
 import torch.nn as nn
+
+
+def encode_yolov1_targets(
+    gt_boxes: Sequence[torch.Tensor],
+    gt_labels: Sequence[torch.Tensor],
+    split_size: int,
+    num_classes: int,
+    img_size: float,
+    device: torch.device,
+) -> torch.Tensor:
+    """
+    Encode batch ground truth bounding boxes and class labels into YOLOv1 SxS target tensor.
+    Target format per cell: [C classes (one-hot), 1 objectness, 4 coords (cx*S - col, cy*S - row, w*S, h*S)].
+    """
+    batch_size = len(gt_boxes)
+    targets_matrix = torch.zeros(batch_size, split_size, split_size, num_classes + 5, device=device)
+    for b_i in range(batch_size):
+        b_boxes = gt_boxes[b_i]
+        b_labels = gt_labels[b_i]
+        if b_boxes.numel() == 0:
+            continue
+        for box, lbl in zip(b_boxes, b_labels):
+            x1, y1, x2, y2 = box.tolist()
+            cx, cy = (x1 + x2) / (2.0 * img_size), (y1 + y2) / (2.0 * img_size)
+            w, h = (x2 - x1) / img_size, (y2 - y1) / img_size
+            ci = min(max(int(cy * split_size), 0), split_size - 1)
+            cj = min(max(int(cx * split_size), 0), split_size - 1)
+            cls_idx = min(
+                max(int(lbl.item() if hasattr(lbl, "item") else lbl), 0),
+                num_classes - 1,
+            )
+            targets_matrix[b_i, ci, cj, cls_idx] = 1.0
+            targets_matrix[b_i, ci, cj, num_classes] = 1.0
+            targets_matrix[b_i, ci, cj, num_classes + 1 : num_classes + 5] = torch.tensor(
+                [cx * split_size - cj, cy * split_size - ci, w * split_size, h * split_size],
+                device=device,
+            )
+    return targets_matrix
 
 
 def _box_iou_xywh(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:

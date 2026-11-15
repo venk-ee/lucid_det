@@ -23,7 +23,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from datasets import DetDataset, det_collate
 from engine import COCOEvaluator, ModelEMA, build_lr_scheduler
-from losses import YOLOv1Loss
+from losses import YOLOv1Loss, encode_yolov1_targets
 from models import YOLOv1
 from runners import load_checkpoint, save_checkpoint, train_one_epoch, val_one_epoch
 from training_scripts.common import add_common_training_args, apply_common_training_args
@@ -162,37 +162,29 @@ def run_training(cfg: TrainConfig) -> None:
         num_boxes=cfg.model.num_boxes,
         num_classes=cfg.model.num_classes,
     )
+    img_sz = float(
+        cfg.data.img_size[0] if isinstance(cfg.data.img_size, tuple) else cfg.data.img_size
+    )
 
     def loss_fn(outputs, targets):
-        S = cfg.model.split_size
         if isinstance(targets, dict) and "gt_boxes" in targets:
-            b_size = len(targets["gt_boxes"])
-        elif hasattr(outputs, "pred_boxes"):
-            b_size = outputs.pred_boxes.shape[0]
-        elif hasattr(outputs, "shape"):
-            b_size = outputs.shape[0]
-        else:
-            b_size = 1
-
-        targets_matrix = torch.zeros(b_size, S, S, cfg.model.num_classes + 5, device=device)
-        if isinstance(targets, dict) and "gt_boxes" in targets:
-            img_sz = float(
-                cfg.data.img_size[0] if isinstance(cfg.data.img_size, tuple) else cfg.data.img_size
+            targets_matrix = encode_yolov1_targets(
+                gt_boxes=targets["gt_boxes"],
+                gt_labels=targets["gt_labels"],
+                split_size=cfg.model.split_size,
+                num_classes=cfg.model.num_classes,
+                img_size=img_sz,
+                device=device,
             )
-            for b_i in range(b_size):
-                gt_b = targets["gt_boxes"][b_i]
-                gt_l = targets["gt_labels"][b_i]
-                for box, lbl in zip(gt_b, gt_l):
-                    x1, y1, x2, y2 = box.tolist()
-                    cx, cy = (x1 + x2) / (2.0 * img_sz), (y1 + y2) / (2.0 * img_sz)
-                    w, h = (x2 - x1) / img_sz, (y2 - y1) / img_sz
-                    ci, cj = min(int(cy * S), S - 1), min(int(cx * S), S - 1)
-                    cls_idx = min(int(lbl.item()), cfg.model.num_classes - 1)
-                    targets_matrix[b_i, ci, cj, cls_idx] = 1.0
-                    targets_matrix[b_i, ci, cj, cfg.model.num_classes] = 1.0
-                    targets_matrix[
-                        b_i, ci, cj, cfg.model.num_classes + 1 : cfg.model.num_classes + 5
-                    ] = torch.tensor([cx * S - cj, cy * S - ci, w * S, h * S], device=device)
+        else:
+            b_size = outputs.shape[0] if hasattr(outputs, "shape") else 1
+            targets_matrix = torch.zeros(
+                b_size,
+                cfg.model.split_size,
+                cfg.model.split_size,
+                cfg.model.num_classes + 5,
+                device=device,
+            )
         return yolo_loss_fn(outputs, targets_matrix)
 
     # 4. Training Loop & Resume
