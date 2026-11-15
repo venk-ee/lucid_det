@@ -51,6 +51,7 @@ class DetDataset(Dataset):
             self.cat_ids = [c["id"] for c in cats][:num_classes] if cats else [1]
         else:
             self.cat_ids = list(cat_ids)
+        self.num_classes = len(self.cat_ids)
 
         self.cat2label: Dict[int, int] = {cid: i for i, cid in enumerate(self.cat_ids)}
         self.label2cat: Dict[int, int] = {i: cid for cid, i in self.cat2label.items()}
@@ -102,6 +103,8 @@ class DetDataset(Dataset):
             if len(bboxes) > 0:
                 boxes_xyxy = [[x, y, x + w, y + h] for x, y, w, h in bboxes]
                 gt_boxes = torch.tensor(boxes_xyxy, dtype=torch.float32)
+                gt_boxes[:, 0::2].clamp_(0.0, float(orig_w))
+                gt_boxes[:, 1::2].clamp_(0.0, float(orig_h))
                 gt_labels = torch.tensor(labels, dtype=torch.int64)
             else:
                 gt_boxes = torch.empty((0, 4), dtype=torch.float32)

@@ -11,6 +11,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from datasets.utils import scale_boxes
+
 
 def save_checkpoint(state: Dict[str, Any], path: str) -> None:
     """Save training checkpoint atomically."""
@@ -87,6 +89,10 @@ def train_one_epoch(
     running_loss = 0.0
     num_batches = len(dataloader)
     effective_amp = use_amp and (device.type == "cuda")
+    amp_dtype = (
+        torch.bfloat16 if (effective_amp and torch.cuda.is_bf16_supported()) else torch.float16
+    )
+    effective_scaler = scaler if (effective_amp and amp_dtype == torch.float16) else None
 
     pbar = tqdm(dataloader, desc=f"Epoch [{epoch}/{epochs}]", leave=False)
     for batch in pbar:
@@ -102,7 +108,7 @@ def train_one_epoch(
         else:
             raise TypeError(f"Unsupported batch type: {type(batch)}")
 
-        with torch.amp.autocast(device_type=device.type, enabled=effective_amp):
+        with torch.amp.autocast(device_type=device.type, dtype=amp_dtype, enabled=effective_amp):
             outputs = model(images, training_override=True)
             loss, loss_dict = loss_fn(outputs, batch_targets)
 
@@ -110,15 +116,15 @@ def train_one_epoch(
             print(f"Warning: Non-finite loss detected at step {current_step}: {loss_dict}")
             continue
 
-        if scaler is not None and effective_amp:
-            scaler.scale(loss).backward()
+        if effective_scaler is not None:
+            effective_scaler.scale(loss).backward()
             if clip_max_norm > 0:
-                scaler.unscale_(optimizer)
+                effective_scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=clip_max_norm)
-            scale_before = scaler.get_scale()
-            scaler.step(optimizer)
-            scaler.update()
-            scale_after = scaler.get_scale()
+            scale_before = effective_scaler.get_scale()
+            effective_scaler.step(optimizer)
+            effective_scaler.update()
+            scale_after = effective_scaler.get_scale()
             stepped = scale_after >= scale_before
         else:
             loss.backward()
@@ -184,21 +190,37 @@ def val_one_epoch(
                 batch_dets = getattr(outputs, "detections")
 
             if batch_dets is not None:
-                for img_id, det in zip(img_ids, batch_dets):
+                img_h, img_w = images.shape[-2:]
+                ori_shapes = (
+                    batch.get("ori_shapes", [(img_h, img_w)] * len(images))
+                    if isinstance(batch, dict)
+                    else [(img_h, img_w)] * len(images)
+                )
+                dataset = getattr(dataloader, "dataset", None)
+                label2cat = getattr(dataset, "label2cat", None)
+                if not label2cat and evaluator is not None:
+                    label2cat = getattr(evaluator, "label2cat", {})
+                if not label2cat:
+                    label2cat = {}
+
+                for img_id, det, ori_shape in zip(img_ids, batch_dets, ori_shapes):
                     boxes = det["boxes"]
                     scores = det["scores"]
                     labels = det["labels"]
+                    if boxes.numel() > 0:
+                        boxes = scale_boxes(boxes, (img_h, img_w), ori_shape)
+
                     for b, s, lbl in zip(boxes, scores, labels):
                         x1, y1, x2, y2 = b.tolist()
                         img_id_val = (
                             int(img_id) if not hasattr(img_id, "item") else int(img_id.item())
                         )
+                        lbl_val = int(lbl.item()) if hasattr(lbl, "item") else int(lbl)
+                        cat_id = label2cat.get(lbl_val, lbl_val + 1)
                         all_predictions.append(
                             {
                                 "image_id": img_id_val,
-                                "category_id": int(lbl.item())
-                                if hasattr(lbl, "item")
-                                else int(lbl),
+                                "category_id": cat_id,
                                 "bbox": [x1, y1, max(0.0, x2 - x1), max(0.0, y2 - y1)],
                                 "score": float(s.item()) if hasattr(s, "item") else float(s),
                             }

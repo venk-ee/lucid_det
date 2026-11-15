@@ -35,12 +35,15 @@ class YOLOv1Head(nn.Module):
         num_boxes: int = 2,
         hidden_dim: int = 496,
         dropout: float = 0.5,
+        img_size: float = 640.0,
     ) -> None:
         super().__init__()
         self.in_channels = in_channels
         self.num_classes = num_classes
         self.S = split_size
         self.B = num_boxes
+        self.hidden_dim = hidden_dim
+        self.img_size = float(img_size)
         self.out_dim = self.B * 5 + self.num_classes
 
         self.pool = nn.AdaptiveAvgPool2d((self.S, self.S))
@@ -64,12 +67,9 @@ class YOLOv1Head(nn.Module):
         grid_preds = raw.view(batch_size, self.S, self.S, self.out_dim)
 
         # Decode for DetectionOutput compatibility (NMS and metrics)
-        # Assumes normalized 0..1 scale relative to default 448 or 640 image
-        img_size = 448.0
-        cell_size = img_size / self.S
+        cell_size = self.img_size / self.S
 
-        # Extract classes (first C elements or last C elements depending on convention)
-        # Following YoloV1/loss.py: [classes (C), box1 (5), box2 (5)] -> C + B*5
+        # Extract class probabilities and bounding box predictions: [classes (C), box1 (5), box2 (5)]
         cls_probs = grid_preds[..., : self.num_classes].softmax(dim=-1)
 
         boxes_list: List[torch.Tensor] = []
@@ -89,11 +89,11 @@ class YOLOv1Head(nn.Module):
             conf = grid_preds[..., box_offset : box_offset + 1].sigmoid()
             box_coords = grid_preds[..., box_offset + 1 : box_offset + 5]
 
-            # In YOLOv1: x, y are offsets in cell [0, 1], w, h are normalized to image
+            # In YOLOv1: x, y are offsets in cell [0, 1], w, h are cell-scaled units
             bx = (grid_x.float() + box_coords[..., 0].sigmoid()) * cell_size
             by = (grid_y.float() + box_coords[..., 1].sigmoid()) * cell_size
-            bw = box_coords[..., 2].abs() * img_size
-            bh = box_coords[..., 3].abs() * img_size
+            bw = box_coords[..., 2].abs() * cell_size
+            bh = box_coords[..., 3].abs() * cell_size
 
             x1 = bx - 0.5 * bw
             y1 = by - 0.5 * bh
@@ -110,9 +110,9 @@ class YOLOv1Head(nn.Module):
             cls_list.append(combined_logits)
             centers_list.append(torch.stack([bx.view(-1), by.view(-1)], dim=-1))
 
-        pred_boxes = torch.cat(boxes_list, dim=1)  # (B, S * S * B, 4)
-        pred_cls = torch.cat(cls_list, dim=1)  # (B, S * S * B, num_classes)
-        anchor_centers = torch.cat(centers_list, dim=0)  # (S * S * B, 2)
+        pred_boxes = torch.cat(boxes_list, dim=1)
+        pred_cls = torch.cat(cls_list, dim=1)
+        anchor_centers = torch.cat(centers_list, dim=0)
         anchor_strides = torch.full(
             (pred_boxes.shape[1], 1), cell_size, device=device, dtype=torch.float32
         )

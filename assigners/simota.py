@@ -68,13 +68,13 @@ def dynamic_soft_label_assign(
         label_weights[:] = 1.0
         return labels, label_weights, bbox_targets, assign_metrics
 
-    gt_center = (gt_boxes[:, :2] + gt_boxes[:, 2:]) / 2.0  # (G, 2)
+    gt_center = (gt_boxes[:, :2] + gt_boxes[:, 2:]) / 2.0
     dist = (centers[:, None, :] - gt_center[None, :, :]).norm(dim=-1) / strides
 
-    lt = centers[:, None, :] - gt_boxes[None, :, :2]  # (A, G, 2)
+    lt = centers[:, None, :] - gt_boxes[None, :, :2]
     rb = gt_boxes[None, :, 2:] - centers[:, None, :]
-    deltas = torch.cat([lt, rb], dim=-1)  # (A, G, 4)
-    is_in = deltas.min(-1).values > 0  # (A, G)
+    deltas = torch.cat([lt, rb], dim=-1)
+    is_in = deltas.min(-1).values > 0
     is_candidate = is_in | (dist < soft_center_radius)
     valid = is_candidate.sum(1) > 0
 
@@ -89,7 +89,7 @@ def dynamic_soft_label_assign(
     v_centers = centers[valid]
     v_strides = strides[valid].squeeze(-1)
 
-    pairwise_ious = box_iou(v_boxes, gt_boxes).clamp(min=EPS)  # (V, G)
+    pairwise_ious = box_iou(v_boxes, gt_boxes).clamp(min=EPS)
 
     dist = (v_centers[:, None, :] - gt_center[None, :, :]).pow(2).sum(-1).sqrt() / v_strides[
         :, None
@@ -98,14 +98,14 @@ def dynamic_soft_label_assign(
 
     iou_cost = -torch.log(pairwise_ious + EPS) * iou_weight
 
-    onehot = F.one_hot(gt_labels.long(), num_classes).float()  # (G, C)
-    soft_label = onehot.unsqueeze(0) * pairwise_ious.unsqueeze(-1)  # (V, G, C)
+    onehot = F.one_hot(gt_labels.long(), num_classes).float()
+    soft_label = onehot.unsqueeze(0) * pairwise_ious.unsqueeze(-1)
     v_prob = v_logits.unsqueeze(1).repeat(1, G, 1)
     scale = (soft_label - v_prob.sigmoid()).abs().pow(2.0)
     bce = F.binary_cross_entropy_with_logits(v_prob, soft_label, reduction="none")
     cls_cost = (scale * bce).sum(-1)
 
-    cost = cls_cost + iou_cost + soft_prior  # (V, G)
+    cost = cls_cost + iou_cost + soft_prior
 
     cand_topk = min(topk, V)
     topk_ious, _ = torch.topk(pairwise_ious, cand_topk, dim=0)
@@ -122,7 +122,7 @@ def dynamic_soft_label_assign(
         matching[multi] *= 0
         matching[multi, argmin] = 1
 
-    fg = matching.sum(1) > 0  # V
+    fg = matching.sum(1) > 0
     matched_gt = matching[fg].argmax(1)
     matched_iou = (matching.float() * pairwise_ious).sum(1)[fg]
     orig_pos = v_idx[torch.where(fg)[0]]

@@ -177,8 +177,8 @@ class SepBNHead(nn.Module):
             for layer in self.reg_convs[lvl]:
                 rf = layer(rf)
 
-            cls_score = self.rtm_cls[lvl](cf)  # B, num_classes, H, W
-            reg = self.rtm_reg[lvl](rf)  # B, 4, H, W
+            cls_score = self.rtm_cls[lvl](cf)
+            reg = self.rtm_reg[lvl](rf)
 
             if self.with_objectness and self.rtm_obj is not None:
                 obj = self.rtm_obj[lvl](rf)

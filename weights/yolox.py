@@ -86,7 +86,7 @@ def convert_yolox(raw_sd: Any, preset: ModelWeightPreset) -> Dict[str, torch.Ten
 
     # Check for Focus layer weights to reshape into Conv 6x6
     focus_weight_key = None
-    for k in sd.keys():
+    for k in sd:
         if (
             "stem.conv.conv.weight" in k
             or "stem.focus.conv.conv.weight" in k

@@ -51,7 +51,7 @@ def build_assigner(name: str = "simota", **kwargs: Any) -> Any:
     """
     if name not in ASSIGNERS:
         raise ValueError(
-            f"Unknown assigner '{name}'. Available assigners: {sorted(list(ASSIGNERS.keys()))}"
+            f"Unknown assigner '{name}'. Available assigners: {sorted(ASSIGNERS.keys())}"
         )
     target = ASSIGNERS[name]
     if isinstance(target, type):

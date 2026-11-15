@@ -79,4 +79,4 @@ def get_preset(name: str) -> ModelWeightPreset:
 
 def list_presets() -> List[ModelWeightPreset]:
     """Return all registered ModelWeightPreset instances sorted by name."""
-    return sorted(list(WEIGHT_PRESETS.values()), key=lambda p: p.name)
+    return sorted(WEIGHT_PRESETS.values(), key=lambda p: p.name)

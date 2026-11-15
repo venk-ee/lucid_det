@@ -17,7 +17,7 @@ into a single, clean, modular detection library named **LucidDet**, architected 
 * **Pure PyTorch & Readability:** Clean, explicit PyTorch code you can step through line-by-line with a standard debugger (`pdb` / VSCode).
 * **Modern Tooling:** Managed via `uv` and `pyproject.toml` for fast, reproducible dependency resolution.
 * **Component-First Modularity:** Swappable Backbones, Necks, Heads, Assigners, and Losses via lightweight dictionary registries and dependency injection.
-* **Unified Training & Evaluation Loop:** One battle-tested training engine supporting AMP (`torch.amp`), `ModelEMA`, Linear Warmup + Cosine Annealing, and fast COCO mAP evaluation via `faster-coco-eval`.
+* **Unified Training & Evaluation Loop:** One unified training engine supporting AMP (`torch.amp`), `ModelEMA`, Linear Warmup + Cosine Annealing, and fast COCO mAP evaluation via `faster-coco-eval`.
 
 ---
 

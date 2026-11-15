@@ -53,7 +53,7 @@ def build_backbone(name: str = "cspnext", **kwargs: Any) -> nn.Module:
     """
     if name not in BACKBONES:
         raise ValueError(
-            f"Unknown backbone '{name}'. Available backbones: {sorted(list(BACKBONES.keys()))}"
+            f"Unknown backbone '{name}'. Available backbones: {sorted(BACKBONES.keys())}"
         )
     return BACKBONES[name](**kwargs)
 

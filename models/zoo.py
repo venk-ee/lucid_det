@@ -61,6 +61,7 @@ def build_yolov1(
     num_boxes: int = 2,
     S: Optional[int] = None,
     B: Optional[int] = None,
+    img_size: float = 640.0,
     **kwargs: Any,
 ) -> YOLOv1:
     """Build a complete YOLOv1 detector."""
@@ -75,5 +76,6 @@ def build_yolov1(
         max_num=max_num,
         split_size=split_size,
         num_boxes=num_boxes,
+        img_size=img_size,
         **kwargs,
     )

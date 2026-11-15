@@ -44,7 +44,7 @@ class OptimConfig:
     """Optimization hyperparameters."""
 
     epochs: int = 135
-    lr: float = 1e-3
+    lr: float = 2e-5
     weight_decay: float = 5e-4
     clip_max_norm: float = 35.0
     use_amp: bool = True
@@ -52,6 +52,7 @@ class OptimConfig:
     warmup_epochs: int = 5
     min_lr_ratio: float = 0.05
     ema_decay: float = 0.9998
+    resume: Optional[str] = None
 
 
 @dataclass

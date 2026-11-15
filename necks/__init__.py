@@ -51,7 +51,7 @@ def build_neck(name: str = "pafpn", **kwargs: Any) -> nn.Module:
         Instantiated neck nn.Module.
     """
     if name not in NECKS:
-        raise ValueError(f"Unknown neck '{name}'. Available necks: {sorted(list(NECKS.keys()))}")
+        raise ValueError(f"Unknown neck '{name}'. Available necks: {sorted(NECKS.keys())}")
     return NECKS[name](**kwargs)
 
 

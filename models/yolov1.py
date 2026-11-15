@@ -27,6 +27,7 @@ class YOLOv1(SingleStageDetector):
         num_boxes: int = 2,
         S: Optional[int] = None,
         B: Optional[int] = None,
+        img_size: float = 640.0,
         **kwargs: Any,
     ) -> None:
         if S is not None:
@@ -42,6 +43,7 @@ class YOLOv1(SingleStageDetector):
             num_classes=num_classes,
             split_size=split_size,
             num_boxes=num_boxes,
+            img_size=img_size,
         )
 
         super().__init__(
