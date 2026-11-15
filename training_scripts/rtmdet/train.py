@@ -8,6 +8,7 @@ import argparse
 import os
 import random
 import sys
+from dataclasses import asdict
 from pathlib import Path
 from typing import List
 
@@ -24,7 +25,8 @@ from datasets import DetDataset, det_collate
 from engine import COCOEvaluator, ModelEMA, build_lr_scheduler
 from losses import det_loss
 from models import RTMDet
-from runners import save_checkpoint, train_one_epoch, val_one_epoch
+from runners import load_checkpoint, save_checkpoint, train_one_epoch, val_one_epoch
+from training_scripts.common import add_common_training_args, apply_common_training_args
 from training_scripts.rtmdet.config import TrainConfig
 from transforms import build_det_transform
 
@@ -163,12 +165,38 @@ def run_training(cfg: TrainConfig) -> None:
             box_loss=cfg.model.box_loss,
         )
 
-    # 4. Training Loop
+    # 4. Training Loop & Resume
+    start_epoch = 1
     current_step = 0
     best_loss = float("inf")
     best_metric = 0.0
 
-    for epoch in range(1, cfg.optim.epochs + 1):
+    if getattr(cfg.optim, "resume", None) and os.path.exists(cfg.optim.resume):
+        ckpt = load_checkpoint(cfg.optim.resume, device=device)
+        if ckpt is not None:
+            model.load_state_dict(ckpt["model"])
+            if ema is not None and "ema" in ckpt and ckpt["ema"] is not None:
+                ema.load_state_dict(ckpt["ema"])
+            if "optimizer" in ckpt and ckpt["optimizer"] is not None:
+                optimizer.load_state_dict(ckpt["optimizer"])
+            if (
+                lr_scheduler is not None
+                and "lr_scheduler" in ckpt
+                and ckpt["lr_scheduler"] is not None
+            ):
+                lr_scheduler.load_state_dict(ckpt["lr_scheduler"])
+            if scaler is not None and "scaler" in ckpt and ckpt["scaler"] is not None:
+                scaler.load_state_dict(ckpt["scaler"])
+            start_epoch = ckpt.get("epoch", 0) + 1
+            current_step = ckpt.get("step", 0)
+            best_loss = ckpt.get("best_loss", float("inf"))
+            best_metric = ckpt.get("best_metric", 0.0)
+            print(
+                f"--> Resumed successfully from {cfg.optim.resume} "
+                f"at epoch {start_epoch}, step {current_step}"
+            )
+
+    for epoch in range(start_epoch, cfg.optim.epochs + 1):
         mean_loss, current_step = train_one_epoch(
             model=model,
             dataloader=train_loader,
@@ -206,10 +234,16 @@ def run_training(cfg: TrainConfig) -> None:
         ckpt = {
             "epoch": epoch,
             "step": current_step,
+            "family": "rtmdet",
             "model": model.state_dict(),
             "ema": ema.state_dict() if ema else None,
             "optimizer": optimizer.state_dict(),
+            "lr_scheduler": lr_scheduler.state_dict() if lr_scheduler else None,
+            "scaler": scaler.state_dict() if scaler else None,
             "best_loss": best_loss,
+            "best_metric": best_metric,
+            "model_config": asdict(cfg.model),
+            "data_config": asdict(cfg.data),
         }
         last_ckpt_path = os.path.join(cfg.work_dir, "last.pth")
         save_checkpoint(ckpt, last_ckpt_path)
@@ -222,19 +256,20 @@ def run_training(cfg: TrainConfig) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="LucidDet RTMDet Training Launcher")
-    parser.add_argument("--epochs", type=int, default=None, help="Override epochs")
-    parser.add_argument("--batch-size", type=int, default=None, help="Override batch size")
-    parser.add_argument("--lr", type=float, default=None, help="Override learning rate")
+    add_common_training_args(parser)
+    parser.add_argument(
+        "--arch",
+        type=str,
+        default=None,
+        help="Override model architecture scale (tiny, s, m, l, x)",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
     config = TrainConfig()
-    if args.epochs is not None:
-        config.optim.epochs = args.epochs
-    if args.batch_size is not None:
-        config.data.batch_size = args.batch_size
-    if args.lr is not None:
-        config.optim.lr = args.lr
+    apply_common_training_args(config, args)
+    if args.arch is not None:
+        config.model.arch = args.arch
     run_training(config)

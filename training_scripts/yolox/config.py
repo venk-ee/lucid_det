@@ -52,6 +52,7 @@ class OptimConfig:
     warmup_epochs: int = 5
     min_lr_ratio: float = 0.05
     ema_decay: float = 0.9998
+    resume: Optional[str] = None
 
 
 @dataclass
