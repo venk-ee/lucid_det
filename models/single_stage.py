@@ -12,6 +12,7 @@ import torch
 import torch.nn as nn
 
 from core.nms import multiclass_nms_batch
+from core.outputs import DetectionOutput
 
 T = TypeVar("T", bound="SingleStageDetector")
 
@@ -184,22 +185,27 @@ class SingleStageDetector(nn.Module):
                 max_num=self.max_num,
             )
 
+            if isinstance(outputs, DetectionOutput):
+                outputs.detections = detections
+                return outputs
+
             if isinstance(outputs, Mapping):
                 result = dict(outputs)
                 result["detections"] = detections
                 return result
-            elif hasattr(outputs, "__setitem__"):
+
+            if hasattr(outputs, "__setitem__"):
                 try:
                     outputs["detections"] = detections
                     return outputs
-                except Exception:
+                except (TypeError, KeyError):
                     pass
 
             if hasattr(outputs, "detections"):
                 try:
                     outputs.detections = detections
                     return outputs
-                except Exception:
+                except (AttributeError, TypeError):
                     pass
 
             return {"detections": detections, "outputs": outputs}

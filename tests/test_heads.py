@@ -98,3 +98,36 @@ def test_build_head_via_head_map() -> None:
 
     with pytest.raises(ValueError, match="Unknown head 'non_existent_head'"):
         build_head("non_existent_head")
+
+
+def test_detection_output_mapping_interface() -> None:
+    pred_cls = torch.randn(2, 10, 80)
+    pred_boxes = torch.randn(2, 10, 4)
+    centers = torch.randn(10, 2)
+    strides = torch.randn(10, 1)
+
+    out = DetectionOutput(
+        pred_cls=pred_cls,
+        pred_boxes=pred_boxes,
+        anchor_centers=centers,
+        anchor_strides=strides,
+    )
+
+    # 1. Mapping protocol: len, iter, in, dict conversion
+    assert len(out) == 4
+    assert list(out) == ["pred_cls", "pred_boxes", "anchor_centers", "anchor_strides"]
+    assert "pred_cls" in out
+    assert "non_existent" not in out
+    d = dict(out)
+    assert d["pred_cls"] is pred_cls
+    assert d["pred_boxes"] is pred_boxes
+
+    # 2. Key access & setitem
+    assert out["pred_cls"] is pred_cls
+    assert out.get("pred_cls") is pred_cls
+    assert out.get("missing", 42) == 42
+
+    dummy_dets = [{"boxes": torch.zeros(1, 4)}]
+    out["detections"] = dummy_dets
+    assert len(out) == 5
+    assert out.detections is dummy_dets
