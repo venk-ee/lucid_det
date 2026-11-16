@@ -6,7 +6,7 @@ Assembles CSPNeXt backbone, CSPNeXtPAFPN neck, and SepBNHead head.
 from typing import Any
 
 from backbones import build_backbone
-from heads.sep_bn_head import SepBNHead
+from heads import SepBNHead
 from models.single_stage import SingleStageDetector
 from necks import build_neck
 

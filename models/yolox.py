@@ -6,7 +6,7 @@ Assembles CSPDarknet backbone, YOLOXPAFPN neck, and Decoupled YOLOXHead.
 from typing import Any
 
 from backbones import build_backbone
-from heads.yolox_head import YOLOXHead
+from heads import YOLOXHead
 from models.single_stage import SingleStageDetector
 from necks import build_neck
 

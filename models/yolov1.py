@@ -6,7 +6,7 @@ Assembles Darknet24 backbone and YOLOv1Head.
 from typing import Any, Optional
 
 from backbones import build_backbone
-from heads.yolov1_head import YOLOv1Head
+from heads import YOLOv1Head
 from models.single_stage import SingleStageDetector
 from necks import build_neck
 

@@ -22,7 +22,9 @@ from losses import GIoULoss, QualityFocalLoss, YOLOv1Loss, det_loss
 from models import build_rtmdet, build_yolov1, build_yolox
 
 
-def run_rtmdet_sanity(device: torch.device, arch: str = "tiny", num_classes: int = 80) -> None:
+def run_rtmdet_sanity(
+    device: torch.device, arch: str = "tiny", num_classes: int = 80, batch_size: int = 1
+) -> None:
     print(f"\n--- [RTMDet] arch={arch}, classes={num_classes} ---")
     if device.type == "cuda":
         torch.cuda.empty_cache()
@@ -31,16 +33,13 @@ def run_rtmdet_sanity(device: torch.device, arch: str = "tiny", num_classes: int
     print(f"  Params: {total_params:,}")
 
     model.train()
-    batch_size = 1
     dummy_imgs = torch.randn(batch_size, 3, 640, 640, device=device)
     outputs = model(dummy_imgs, training_override=True)
 
     dummy_gt_boxes = [
-        torch.tensor([[50.0, 50.0, 200.0, 200.0]], device=device),
+        torch.tensor([[50.0, 50.0, 200.0, 200.0]], device=device) for _ in range(batch_size)
     ]
-    dummy_gt_labels = [
-        torch.tensor([0], device=device),
-    ]
+    dummy_gt_labels = [torch.tensor([0], device=device) for _ in range(batch_size)]
 
     # Direct dependency injection of loss modules
     total_loss, loss_dict = det_loss(
@@ -77,7 +76,9 @@ def run_rtmdet_sanity(device: torch.device, arch: str = "tiny", num_classes: int
         torch.cuda.empty_cache()
 
 
-def run_yolox_sanity(device: torch.device, arch: str = "s", num_classes: int = 80) -> None:
+def run_yolox_sanity(
+    device: torch.device, arch: str = "s", num_classes: int = 80, batch_size: int = 1
+) -> None:
     print(f"\n--- [YOLOX] arch={arch}, classes={num_classes} ---")
     if device.type == "cuda":
         torch.cuda.empty_cache()
@@ -86,16 +87,13 @@ def run_yolox_sanity(device: torch.device, arch: str = "s", num_classes: int = 8
     print(f"  Params: {total_params:,}")
 
     model.train()
-    batch_size = 1
     dummy_imgs = torch.randn(batch_size, 3, 640, 640, device=device)
     outputs = model(dummy_imgs, training_override=True)
 
     dummy_gt_boxes = [
-        torch.tensor([[50.0, 50.0, 200.0, 200.0]], device=device),
+        torch.tensor([[50.0, 50.0, 200.0, 200.0]], device=device) for _ in range(batch_size)
     ]
-    dummy_gt_labels = [
-        torch.tensor([0], device=device),
-    ]
+    dummy_gt_labels = [torch.tensor([0], device=device) for _ in range(batch_size)]
 
     # Direct dependency injection of loss modules
     total_loss, loss_dict = det_loss(
@@ -132,7 +130,13 @@ def run_yolox_sanity(device: torch.device, arch: str = "s", num_classes: int = 8
         torch.cuda.empty_cache()
 
 
-def run_yolov1_sanity(device: torch.device, num_classes: int = 20, S: int = 7, B: int = 2) -> None:
+def run_yolov1_sanity(
+    device: torch.device,
+    num_classes: int = 20,
+    S: int = 7,
+    B: int = 2,
+    batch_size: int = 1,
+) -> None:
     print(f"\n--- [YOLOv1] classes={num_classes}, S={S}, B={B} ---")
     if device.type == "cuda":
         torch.cuda.empty_cache()
@@ -141,7 +145,6 @@ def run_yolov1_sanity(device: torch.device, num_classes: int = 20, S: int = 7, B
     print(f"  Params: {total_params:,}")
 
     model.train()
-    batch_size = 1
     dummy_imgs = torch.randn(batch_size, 3, 448, 448, device=device)
     outputs = model(dummy_imgs, training_override=True)
 

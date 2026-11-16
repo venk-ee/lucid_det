@@ -5,7 +5,7 @@ and bounding box regression loss (GIoU/CIoU).
 Supports direct dependency injection of loss modules or callable functions.
 """
 
-from typing import Any, Callable, Dict, List, Sequence, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Type, Union
 
 import torch
 import torch.nn as nn
@@ -34,8 +34,12 @@ _DEFAULT_CLS_INSTANCES: Dict[str, Callable] = {}
 _DEFAULT_BOX_INSTANCES: Dict[str, Callable] = {}
 
 
-def resolve_cls_loss(cls_loss: Union[str, Type[nn.Module], nn.Module, Callable]) -> Callable:
+def resolve_cls_loss(
+    cls_loss: Optional[Union[str, Type[nn.Module], nn.Module, Callable]] = None,
+) -> Callable:
     """Resolve classification loss into a callable module or function."""
+    if cls_loss is None:
+        cls_loss = "qfl"
     if isinstance(cls_loss, str):
         key = cls_loss.lower()
         if key not in CLS_LOSS_MAP:
@@ -54,8 +58,12 @@ def resolve_cls_loss(cls_loss: Union[str, Type[nn.Module], nn.Module, Callable])
     )
 
 
-def resolve_box_loss(box_loss: Union[str, Type[nn.Module], nn.Module, Callable]) -> Callable:
+def resolve_box_loss(
+    box_loss: Optional[Union[str, Type[nn.Module], nn.Module, Callable]] = None,
+) -> Callable:
     """Resolve box regression loss into a callable module or function."""
+    if box_loss is None:
+        box_loss = "giou"
     if isinstance(box_loss, str):
         key = box_loss.lower()
         if key not in BOX_LOSS_MAP:

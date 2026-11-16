@@ -113,6 +113,10 @@ def test_yolox_training_step() -> None:
     p_after = next(model.parameters())
     assert not torch.allclose(p_after, p_before)
 
+    del model, outputs, loss, optimizer
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
 
 def test_yolov1_training_step() -> None:
     if torch.cuda.is_available():
@@ -153,6 +157,10 @@ def test_yolov1_training_step() -> None:
     optimizer.step()
     p_after = next(model.parameters())
     assert not torch.allclose(p_after, p_before)
+
+    del model, outputs, loss, optimizer
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
 
 @pytest.mark.parametrize(

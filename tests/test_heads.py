@@ -6,8 +6,8 @@ Verifies direct instantiation, forward pass contracts, and explicit HEAD_MAP loo
 import pytest
 import torch
 
+from core.outputs import DetectionOutput
 from heads import HEAD_MAP, SepBNHead, YOLOv1Head, YOLOXHead, build_head
-from models.outputs import DetectionOutput
 
 
 def test_sep_bn_head_forward() -> None:
