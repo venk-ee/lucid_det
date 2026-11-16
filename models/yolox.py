@@ -38,7 +38,6 @@ class YOLOX(SingleStageDetector):
 
         in_channels = list(getattr(backbone, "out_channels", [128, 256, 512]))
         strides = tuple(getattr(backbone, "strides", (8, 16, 32)))
-        neck_channels = in_channels[0]
         depth_mult = {
             "tiny": 0.33,
             "s": 0.33,
@@ -54,11 +53,19 @@ class YOLOX(SingleStageDetector):
                 num_csp_blocks=num_csp_blocks,
             )
 
+        head_in_channels = in_channels
+        if hasattr(neck, "out_channels"):
+            neck_out = getattr(neck, "out_channels")
+            if isinstance(neck_out, (list, tuple)):
+                head_in_channels = list(neck_out)
+            elif isinstance(neck_out, int):
+                head_in_channels = [neck_out] * len(strides)
+
         if head is None:
             head = YOLOXHead(
                 num_classes=num_classes,
-                in_channels=in_channels,
-                feat_channels=neck_channels,
+                in_channels=head_in_channels,
+                feat_channels=head_in_channels[0],
                 strides=strides,
             )
 

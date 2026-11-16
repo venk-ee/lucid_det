@@ -167,7 +167,7 @@ def det_loss(
     if box_parts:
         loss_box = torch.cat(box_parts).sum() / avg_factor
     else:
-        loss_box = pred_boxes.sum() * 0.0
+        loss_box = pred_boxes.float().sum() * 0.0
 
     total_loss = loss_cls + box_weight * loss_box
     return total_loss, {

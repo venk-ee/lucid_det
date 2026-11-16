@@ -50,11 +50,15 @@ class RTMDet(SingleStageDetector):
                 use_depthwise=use_depthwise,
             )
 
+        head_channels = getattr(neck, "out_channels", neck_channels)
+        if isinstance(head_channels, (list, tuple)):
+            head_channels = head_channels[0]
+
         if head is None:
             head = SepBNHead(
                 num_classes=num_classes,
-                in_channels=neck_channels,
-                feat_channels=neck_channels,
+                in_channels=head_channels,
+                feat_channels=head_channels,
                 strides=strides,
                 exp_on_reg=exp_on_reg,
                 share_conv=True,

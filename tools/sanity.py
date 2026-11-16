@@ -82,7 +82,7 @@ def run_yolox_sanity(
     print(f"\n--- [YOLOX] arch={arch}, classes={num_classes} ---")
     if device.type == "cuda":
         torch.cuda.empty_cache()
-    model = build_yolox(scale=arch, num_classes=num_classes).to(device)
+    model = build_yolox(arch=arch, num_classes=num_classes).to(device)
     total_params = sum(p.numel() for p in model.parameters())
     print(f"  Params: {total_params:,}")
 

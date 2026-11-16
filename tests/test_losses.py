@@ -108,8 +108,10 @@ def test_det_loss_direct_dependency_injection() -> None:
     num_classes = 80
 
     pred_cls = torch.randn(batch_size, num_anchors, num_classes, requires_grad=True)
-    pred_boxes = torch.rand(batch_size, num_anchors, 4) * 640.0
-    pred_boxes.requires_grad = True
+    pred_x1y1 = torch.rand(batch_size, num_anchors, 2) * 500.0
+    pred_wh = torch.rand(batch_size, num_anchors, 2) * 100.0 + 1.0
+    pred_boxes = torch.cat([pred_x1y1, pred_x1y1 + pred_wh], dim=-1).requires_grad_(True)
+    assert (pred_boxes[..., 2:] >= pred_boxes[..., :2]).all()
     centers = torch.rand(num_anchors, 2) * 640.0
     strides = torch.full((num_anchors, 1), 8.0)
 

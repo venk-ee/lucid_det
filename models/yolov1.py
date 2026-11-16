@@ -46,8 +46,16 @@ class YOLOv1(SingleStageDetector):
         if neck is None:
             neck = IdentityNeck()
         if head is None:
+            in_ch = 1024
+            if hasattr(neck, "out_channels"):
+                out_c = getattr(neck, "out_channels")
+                in_ch = out_c[0] if isinstance(out_c, (list, tuple)) else out_c
+            elif hasattr(backbone, "out_channels"):
+                out_c = getattr(backbone, "out_channels")
+                in_ch = out_c[0] if isinstance(out_c, (list, tuple)) else out_c
+
             head = YOLOv1Head(
-                in_channels=1024,
+                in_channels=in_ch,
                 num_classes=num_classes,
                 split_size=split_size,
                 num_boxes=num_boxes,

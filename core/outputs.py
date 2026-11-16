@@ -13,6 +13,14 @@ class DetectionOutput:
     """
     Standard output contract for single-stage anchor-free detectors.
     Compatible with dictionary indexing and attribute access.
+
+    Attributes:
+        pred_cls: (B, A, num_classes) tensor of classification logits or scores.
+        pred_boxes: (B, A, 4) tensor of predicted bounding boxes in xyxy format.
+        anchor_centers: (A, 2) tensor of anchor/prior center points (cx, cy).
+        anchor_strides: (A, 1) or (A,) tensor of feature grid downsampling strides.
+        detections: Optional list of per-image detection dicts containing post-NMS results
+            with keys 'boxes' (N, 4), 'scores' (N,), and 'labels' (N,).
     """
 
     pred_cls: torch.Tensor

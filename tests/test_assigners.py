@@ -19,7 +19,10 @@ def test_dynamic_soft_label_assign_forward() -> None:
     num_classes = 80
 
     pred_cls = torch.randn(num_anchors, num_classes)
-    pred_boxes = torch.rand(num_anchors, 4) * 640.0
+    pred_x1y1 = torch.rand(num_anchors, 2) * 500.0
+    pred_wh = torch.rand(num_anchors, 2) * 100.0 + 1.0
+    pred_boxes = torch.cat([pred_x1y1, pred_x1y1 + pred_wh], dim=-1)
+    assert (pred_boxes[:, 2:] >= pred_boxes[:, :2]).all()
     centers = torch.rand(num_anchors, 2) * 640.0
     strides = torch.full((num_anchors, 1), 8.0)
 
@@ -54,7 +57,10 @@ def test_dynamic_soft_label_assigner_module() -> None:
     num_classes = 20
 
     pred_cls = torch.randn(num_anchors, num_classes)
-    pred_boxes = torch.rand(num_anchors, 4) * 320.0
+    pred_x1y1 = torch.rand(num_anchors, 2) * 200.0
+    pred_wh = torch.rand(num_anchors, 2) * 50.0 + 1.0
+    pred_boxes = torch.cat([pred_x1y1, pred_x1y1 + pred_wh], dim=-1)
+    assert (pred_boxes[:, 2:] >= pred_boxes[:, :2]).all()
     centers = torch.rand(num_anchors, 2) * 320.0
     strides = torch.full((num_anchors, 1), 8.0)
 
