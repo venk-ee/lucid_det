@@ -19,7 +19,7 @@ if ROOT not in sys.path:
 import torch
 
 from losses import GIoULoss, QualityFocalLoss, YOLOv1Loss, det_loss
-from models import build_rtmdet, build_yolov1, build_yolox
+from models import YOLOX, RTMDet, YOLOv1
 
 
 def run_rtmdet_sanity(
@@ -28,7 +28,7 @@ def run_rtmdet_sanity(
     print(f"\n--- [RTMDet] arch={arch}, classes={num_classes} ---")
     if device.type == "cuda":
         torch.cuda.empty_cache()
-    model = build_rtmdet(arch=arch, num_classes=num_classes).to(device)
+    model = RTMDet(arch=arch, num_classes=num_classes).to(device)
     total_params = sum(p.numel() for p in model.parameters())
     print(f"  Params: {total_params:,}")
 
@@ -82,7 +82,7 @@ def run_yolox_sanity(
     print(f"\n--- [YOLOX] arch={arch}, classes={num_classes} ---")
     if device.type == "cuda":
         torch.cuda.empty_cache()
-    model = build_yolox(arch=arch, num_classes=num_classes).to(device)
+    model = YOLOX(arch=arch, num_classes=num_classes).to(device)
     total_params = sum(p.numel() for p in model.parameters())
     print(f"  Params: {total_params:,}")
 
@@ -140,7 +140,7 @@ def run_yolov1_sanity(
     print(f"\n--- [YOLOv1] classes={num_classes}, S={S}, B={B} ---")
     if device.type == "cuda":
         torch.cuda.empty_cache()
-    model = build_yolov1(num_classes=num_classes, S=S, B=B).to(device)
+    model = YOLOv1(num_classes=num_classes, split_size=S, num_boxes=B).to(device)
     total_params = sum(p.numel() for p in model.parameters())
     print(f"  Params: {total_params:,}")
 

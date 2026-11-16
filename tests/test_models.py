@@ -5,7 +5,16 @@ Unit tests for detector models direct instantiation and builders.
 import pytest
 import torch
 
-from models import YOLOX, RTMDet, YOLOv1, build_rtmdet, build_yolov1, build_yolox
+from models import (
+    MODEL_MAP,
+    YOLOX,
+    RTMDet,
+    YOLOv1,
+    build_detector,
+    build_rtmdet,
+    build_yolov1,
+    build_yolox,
+)
 
 
 @pytest.mark.parametrize("arch", ["tiny", "s"])
@@ -30,18 +39,33 @@ def test_yolov1_instantiation() -> None:
     assert model.num_classes == 20
 
 
-def test_zoo_builders() -> None:
-    m_rtm = build_rtmdet(arch="tiny", num_classes=5)
+def test_model_builders_and_model_map() -> None:
+    assert "rtmdet" in MODEL_MAP
+    assert MODEL_MAP["rtmdet"] is RTMDet
+    assert "yolox" in MODEL_MAP
+    assert MODEL_MAP["yolox"] is YOLOX
+    assert "yolov1" in MODEL_MAP
+    assert MODEL_MAP["yolov1"] is YOLOv1
+
+    m_rtm = build_detector("rtmdet", arch="tiny", num_classes=5)
     assert isinstance(m_rtm, RTMDet)
     assert m_rtm.num_classes == 5
 
-    m_yolox = build_yolox(arch="s", num_classes=5)
+    m_yolox = build_detector("yolox", arch="s", num_classes=5)
     assert isinstance(m_yolox, YOLOX)
     assert m_yolox.num_classes == 5
 
-    m_yolo1 = build_yolov1(num_classes=5, img_size=448.0)
+    m_yolo1 = build_detector("yolov1", num_classes=5, img_size=448.0)
     assert isinstance(m_yolo1, YOLOv1)
     assert m_yolo1.num_classes == 5
+
+    with pytest.raises(ValueError, match="Unknown detector model"):
+        build_detector("unknown_detector")
+
+    # Convenience aliases
+    assert isinstance(build_rtmdet(arch="tiny"), RTMDet)
+    assert isinstance(build_yolox(arch="s"), YOLOX)
+    assert isinstance(build_yolov1(num_classes=20), YOLOv1)
 
 
 def test_forward_pass_training_and_eval() -> None:
@@ -101,3 +125,25 @@ def test_detector_direct_dependency_injection() -> None:
     assert model_v1.backbone is bb_v1
     assert model_v1.neck is neck_v1
     assert model_v1.head is head_v1
+
+
+def test_checkpoint_and_from_pretrained_methods(tmp_path) -> None:
+    model = RTMDet(arch="tiny", num_classes=5)
+    ckpt_path = tmp_path / "model.pth"
+    torch.save(
+        {"model": model.state_dict(), "meta": {"arch": "tiny", "num_classes": 5}},
+        ckpt_path,
+    )
+
+    # 1. Constructor checkpoint loading
+    model_loaded = RTMDet(arch="tiny", num_classes=5, checkpoint=ckpt_path)
+    assert isinstance(model_loaded, RTMDet)
+
+    # 2. from_pretrained classmethod
+    model_pretrained = RTMDet.from_pretrained(ckpt_path)
+    assert isinstance(model_pretrained, RTMDet)
+    assert model_pretrained.num_classes == 5
+
+    # 3. Missing file raises FileNotFoundError
+    with pytest.raises(FileNotFoundError):
+        RTMDet.from_pretrained(tmp_path / "non_existent.pth")
