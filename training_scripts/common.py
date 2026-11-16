@@ -122,7 +122,10 @@ def apply_common_training_args(config: Any, args: argparse.Namespace) -> Any:
         config.optim.device = args.device
     if getattr(args, "resume", None) is not None:
         config.optim.resume = args.resume
-    if getattr(args, "cooldown_epochs", None) is not None:
-        if hasattr(config, "optim") and hasattr(config.optim, "cooldown_epochs"):
-            config.optim.cooldown_epochs = args.cooldown_epochs
+    if (
+        getattr(args, "cooldown_epochs", None) is not None
+        and hasattr(config, "optim")
+        and hasattr(config.optim, "cooldown_epochs")
+    ):
+        config.optim.cooldown_epochs = args.cooldown_epochs
     return config

@@ -92,7 +92,7 @@ class COCOEvaluator:
         self.ann_file = ann_file
         self.coco_gt = COCO(ann_file)
         self.cat_ids = sorted(cat_ids) if cat_ids is not None else sorted(self.coco_gt.getCatIds())
-        self.label2cat: Dict[int, int] = {i: cid for i, cid in enumerate(self.cat_ids)}
+        self.label2cat: Dict[int, int] = dict(enumerate(self.cat_ids))
 
     def evaluate(self, preds: List[Dict[str, Any]]) -> Dict[str, float]:
         return eval_bbox(self.coco_gt, preds)
