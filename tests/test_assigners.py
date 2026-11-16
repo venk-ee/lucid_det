@@ -6,24 +6,30 @@ Verifies assignment metrics, tensor shapes, and ASSIGNER_MAP lookup.
 import pytest
 import torch
 
-from assigners import ASSIGNER_MAP, DynamicSoftLabelAssigner, build_assigner, dynamic_soft_label_assign
+from assigners import (
+    ASSIGNER_MAP,
+    DynamicSoftLabelAssigner,
+    build_assigner,
+    dynamic_soft_label_assign,
+)
 
 
 def test_dynamic_soft_label_assign_forward() -> None:
     num_anchors = 100
     num_classes = 80
-    num_gt = 3
 
     pred_cls = torch.randn(num_anchors, num_classes)
     pred_boxes = torch.rand(num_anchors, 4) * 640.0
     centers = torch.rand(num_anchors, 2) * 640.0
     strides = torch.full((num_anchors, 1), 8.0)
 
-    gt_boxes = torch.tensor([
-        [50.0, 50.0, 150.0, 150.0],
-        [200.0, 200.0, 300.0, 300.0],
-        [400.0, 400.0, 500.0, 500.0],
-    ])
+    gt_boxes = torch.tensor(
+        [
+            [50.0, 50.0, 150.0, 150.0],
+            [200.0, 200.0, 300.0, 300.0],
+            [400.0, 400.0, 500.0, 500.0],
+        ]
+    )
     gt_labels = torch.tensor([0, 1, 2])
 
     labels, label_weights, bbox_targets, assign_metrics = dynamic_soft_label_assign(

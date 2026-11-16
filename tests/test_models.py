@@ -68,7 +68,7 @@ def test_yolov1_positional_arguments_compatibility() -> None:
 def test_detector_direct_dependency_injection() -> None:
     from backbones import CSPDarknet, CSPNeXt, Darknet24
     from heads import SepBNHead, YOLOv1Head, YOLOXHead
-    from necks import CSPNeXtPAFPN, IdentityNeck, YOLOXPAFPN
+    from necks import YOLOXPAFPN, CSPNeXtPAFPN, IdentityNeck
 
     # RTMDet DI
     bb_rtm = CSPNeXt(arch="tiny")
@@ -82,7 +82,12 @@ def test_detector_direct_dependency_injection() -> None:
     # YOLOX DI
     bb_yolox = CSPDarknet(arch="s")
     neck_yolox = YOLOXPAFPN(in_channels=list(bb_yolox.out_channels))
-    head_yolox = YOLOXHead(num_classes=5, in_channels=list(bb_yolox.out_channels), feat_channels=128, strides=bb_yolox.strides)
+    head_yolox = YOLOXHead(
+        num_classes=5,
+        in_channels=list(bb_yolox.out_channels),
+        feat_channels=128,
+        strides=bb_yolox.strides,
+    )
     model_yolox = YOLOX(backbone=bb_yolox, neck=neck_yolox, head=head_yolox, num_classes=5)
     assert model_yolox.backbone is bb_yolox
     assert model_yolox.neck is neck_yolox

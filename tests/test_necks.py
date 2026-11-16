@@ -6,7 +6,7 @@ Verifies direct instantiation, multi-scale feature aggregation, and NECK_MAP loo
 import pytest
 import torch
 
-from necks import CSPNeXtPAFPN, IdentityNeck, NECK_MAP, YOLOXPAFPN, build_neck
+from necks import NECK_MAP, YOLOXPAFPN, CSPNeXtPAFPN, IdentityNeck, build_neck
 
 
 def test_cspnext_pafpn_forward() -> None:

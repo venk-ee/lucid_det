@@ -79,10 +79,18 @@ def test_build_head_via_head_map() -> None:
     assert HEAD_MAP["yolov1_head"] is YOLOv1Head
 
     # Explicit builder verification
-    head_rtm = build_head("sep_bn_head", num_classes=10, in_channels=64, feat_channels=64, strides=(8, 16, 32))
+    head_rtm = build_head(
+        "sep_bn_head", num_classes=10, in_channels=64, feat_channels=64, strides=(8, 16, 32)
+    )
     assert isinstance(head_rtm, SepBNHead)
 
-    head_yolox = build_head("yolox_head", num_classes=10, in_channels=[64, 128, 256], feat_channels=64, strides=(8, 16, 32))
+    head_yolox = build_head(
+        "yolox_head",
+        num_classes=10,
+        in_channels=[64, 128, 256],
+        feat_channels=64,
+        strides=(8, 16, 32),
+    )
     assert isinstance(head_yolox, YOLOXHead)
 
     head_v1 = build_head("yolov1_head", in_channels=1024, num_classes=20)
