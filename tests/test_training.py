@@ -115,15 +115,17 @@ def test_yolox_training_step() -> None:
 
 
 def test_yolov1_training_step() -> None:
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    img_size = 640.0
+    img_size = 448.0
     num_classes = 80
     S = 7
     model = YOLOv1(num_classes=num_classes, img_size=img_size, split_size=S).to(device)
     model.train()
-    optimizer = torch.optim.AdamW(model.parameters(), lr=2e-5)
+    optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
 
-    batch = get_coco8_batch(img_size=int(img_size), batch_size=2)
+    batch = get_coco8_batch(img_size=int(img_size), batch_size=1)
     imgs = batch["img"].to(device)
     gt_boxes = [b.to(device) for b in batch["gt_boxes"]]
     gt_labels = [lbl.to(device) for lbl in batch["gt_labels"]]

@@ -7,11 +7,8 @@ import torch
 import torch.nn as nn
 
 from core.iou import box_ciou, box_giou
-from losses import register_box_loss
 
 
-@register_box_loss("giou")
-@register_box_loss("giou_loss")
 class GIoULoss(nn.Module):
     """
     Generalized IoU Loss: 1.0 - GIoU.
@@ -39,8 +36,6 @@ class GIoULoss(nn.Module):
         return 1.0 - box_giou(pred_boxes, target_boxes, elementwise=True, eps=self.eps)
 
 
-@register_box_loss("ciou")
-@register_box_loss("ciou_loss")
 class CIoULoss(nn.Module):
     """
     Complete IoU Loss: 1.0 - CIoU.
@@ -68,8 +63,6 @@ class CIoULoss(nn.Module):
         return 1.0 - box_ciou(pred_boxes, target_boxes, eps=self.eps)
 
 
-@register_box_loss("iou")
-@register_box_loss("iou_loss")
 class IoULoss(nn.Module):
     """
     Standard IoU Loss: 1.0 - IoU.

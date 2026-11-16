@@ -7,11 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from losses import register_cls_loss
 
-
-@register_cls_loss("qfl")
-@register_cls_loss("quality_focal_loss")
 class QualityFocalLoss(nn.Module):
     """
     Quality Focal Loss (QFL) from Generalized Focal Loss (GFL).
