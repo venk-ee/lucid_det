@@ -2,24 +2,92 @@
 Unified detection loss dispatcher.
 Integrates target assignment (SimOTA), classification loss (QFL),
 and bounding box regression loss (GIoU/CIoU).
+Supports direct dependency injection of loss modules or callable functions.
 """
 
-from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Type, Union
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from assigners.simota import dynamic_soft_label_assign
-from losses import build_box_loss, build_cls_loss
+from losses.iou_loss import CIoULoss, GIoULoss, IoULoss
+from losses.qfl import QualityFocalLoss
+
+CLS_LOSS_MAP: Dict[str, Type[nn.Module]] = {
+    "qfl": QualityFocalLoss,
+    "quality_focal_loss": QualityFocalLoss,
+}
+
+BOX_LOSS_MAP: Dict[str, Type[nn.Module]] = {
+    "giou": GIoULoss,
+    "giou_loss": GIoULoss,
+    "ciou": CIoULoss,
+    "ciou_loss": CIoULoss,
+    "iou": IoULoss,
+    "iou_loss": IoULoss,
+}
+
+
+_DEFAULT_CLS_INSTANCES: Dict[str, Callable] = {}
+_DEFAULT_BOX_INSTANCES: Dict[str, Callable] = {}
+
+
+def resolve_cls_loss(
+    cls_loss: Optional[Union[str, Type[nn.Module], nn.Module, Callable]] = None,
+) -> Callable:
+    """Resolve classification loss into a callable module or function."""
+    if cls_loss is None:
+        cls_loss = "qfl"
+    if isinstance(cls_loss, str):
+        key = cls_loss.lower()
+        if key not in CLS_LOSS_MAP:
+            raise ValueError(
+                f"Unknown classification loss '{cls_loss}'. Available: {sorted(CLS_LOSS_MAP.keys())}"
+            )
+        if key not in _DEFAULT_CLS_INSTANCES:
+            _DEFAULT_CLS_INSTANCES[key] = CLS_LOSS_MAP[key]()
+        return _DEFAULT_CLS_INSTANCES[key]
+    if isinstance(cls_loss, type) and issubclass(cls_loss, nn.Module):
+        return cls_loss()
+    if callable(cls_loss):
+        return cls_loss
+    raise TypeError(
+        f"Invalid cls_loss: expected str, nn.Module class/instance, or Callable, got {type(cls_loss)}"
+    )
+
+
+def resolve_box_loss(
+    box_loss: Optional[Union[str, Type[nn.Module], nn.Module, Callable]] = None,
+) -> Callable:
+    """Resolve box regression loss into a callable module or function."""
+    if box_loss is None:
+        box_loss = "giou"
+    if isinstance(box_loss, str):
+        key = box_loss.lower()
+        if key not in BOX_LOSS_MAP:
+            raise ValueError(
+                f"Unknown box loss '{box_loss}'. Available: {sorted(BOX_LOSS_MAP.keys())}"
+            )
+        if key not in _DEFAULT_BOX_INSTANCES:
+            _DEFAULT_BOX_INSTANCES[key] = BOX_LOSS_MAP[key]()
+        return _DEFAULT_BOX_INSTANCES[key]
+    if isinstance(box_loss, type) and issubclass(box_loss, nn.Module):
+        return box_loss()
+    if callable(box_loss):
+        return box_loss
+    raise TypeError(
+        f"Invalid box_loss: expected str, nn.Module class/instance, or Callable, got {type(box_loss)}"
+    )
 
 
 def det_loss(
     model_out: Any,
     gt_boxes_list: Sequence[torch.Tensor],
     gt_labels_list: Sequence[torch.Tensor],
-    cls_loss: Union[str, nn.Module, Callable] = "qfl",
-    box_loss: Union[str, nn.Module, Callable] = "giou",
+    cls_loss: Union[str, Type[nn.Module], nn.Module, Callable] = "qfl",
+    box_loss: Union[str, Type[nn.Module], nn.Module, Callable] = "giou",
     box_weight: float = 3.5,
     l1_weight: float = 0.25,
 ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
@@ -34,8 +102,8 @@ def det_loss(
             'anchor_strides': (A, 1) or (A,)
         gt_boxes_list: List of length B with (G_i, 4) ground-truth boxes in xyxy.
         gt_labels_list: List of length B with (G_i,) ground-truth class labels.
-        cls_loss: Classification loss instance or name (default: 'qfl').
-        box_loss: Box regression loss instance or name (default: 'giou').
+        cls_loss: Classification loss instance, class, callable, or name (default: 'qfl').
+        box_loss: Box regression loss instance, class, callable, or name (default: 'giou').
         box_weight: Multiplier weight for bounding box loss.
         l1_weight: Multiplier weight for auxiliary smooth L1 box loss.
 
@@ -43,15 +111,8 @@ def det_loss(
         total_loss: Scalar loss tensor with attached computational graph.
         loss_dict: Dictionary containing component losses ('loss_cls', 'loss_box', 'avg_factor').
     """
-    if isinstance(cls_loss, str):
-        cls_loss_fn: Callable = build_cls_loss(cls_loss)
-    else:
-        cls_loss_fn = cls_loss
-
-    if isinstance(box_loss, str):
-        box_loss_fn: Callable = build_box_loss(box_loss)
-    else:
-        box_loss_fn = box_loss
+    cls_loss_fn = resolve_cls_loss(cls_loss)
+    box_loss_fn = resolve_box_loss(box_loss)
 
     pred_cls = model_out["pred_cls"]
     pred_boxes = model_out["pred_boxes"]
@@ -106,7 +167,7 @@ def det_loss(
     if box_parts:
         loss_box = torch.cat(box_parts).sum() / avg_factor
     else:
-        loss_box = (pred_boxes.sum(dim=-1) * 0.0).sum()
+        loss_box = pred_boxes.float().sum() * 0.0
 
     total_loss = loss_cls + box_weight * loss_box
     return total_loss, {

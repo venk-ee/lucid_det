@@ -10,12 +10,9 @@ import torch
 import torch.nn as nn
 
 from backbones.common import ConvModule
-from heads import register_head
-from models.outputs import DetectionOutput
+from core.outputs import DetectionOutput
 
 
-@register_head("yolox_head")
-@register_head("yolox")
 class YOLOXHead(nn.Module):
     """
     Decoupled Head for YOLOX.

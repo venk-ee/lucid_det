@@ -5,6 +5,7 @@ Direct imports matching modular standards.
 """
 
 import argparse
+import copy
 import os
 import random
 import sys
@@ -23,7 +24,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from datasets import DetDataset, det_collate
 from engine import COCOEvaluator, ModelEMA, build_lr_scheduler
-from losses import det_loss
+from losses import det_loss, resolve_box_loss, resolve_cls_loss
 from models import RTMDet
 from runners import load_checkpoint, save_checkpoint, train_one_epoch, val_one_epoch
 from training_scripts.common import add_common_training_args, apply_common_training_args
@@ -86,6 +87,8 @@ def run_training(cfg: TrainConfig) -> None:
     )
 
     train_transform = build_det_transform(img_size=cfg.data.img_size, is_train=True)
+    val_transform = build_det_transform(img_size=cfg.data.img_size, is_train=False)
+
     train_dataset = DetDataset(
         root=train_root,
         ann_file=train_ann,
@@ -102,6 +105,21 @@ def run_training(cfg: TrainConfig) -> None:
         drop_last=False,
     )
 
+    cooldown_loader = None
+    cooldown_epochs = getattr(cfg.optim, "cooldown_epochs", 0)
+    if cooldown_epochs > 0:
+        cooldown_ds = copy.copy(train_dataset)
+        cooldown_ds.transform = val_transform
+        cooldown_loader = DataLoader(
+            cooldown_ds,
+            batch_size=cfg.data.batch_size,
+            shuffle=True,
+            num_workers=cfg.data.num_workers,
+            collate_fn=det_collate,
+            pin_memory=(device.type == "cuda" and cfg.data.pin_memory),
+            drop_last=False,
+        )
+
     val_loader = None
     evaluator = None
     val_root = (
@@ -115,7 +133,6 @@ def run_training(cfg: TrainConfig) -> None:
         else cfg.data.val_ann
     )
     if os.path.exists(val_root) and os.path.exists(val_ann):
-        val_transform = build_det_transform(img_size=cfg.data.img_size, is_train=False)
         val_dataset = DetDataset(
             root=val_root,
             ann_file=val_ann,
@@ -156,13 +173,16 @@ def run_training(cfg: TrainConfig) -> None:
     use_amp = cfg.optim.use_amp and (device.type == "cuda")
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
 
+    cls_loss_fn = resolve_cls_loss(cfg.model.cls_loss)
+    box_loss_fn = resolve_box_loss(cfg.model.box_loss)
+
     def loss_fn(outputs, targets):
         return det_loss(
             model_out=outputs,
             gt_boxes_list=targets["gt_boxes"],
             gt_labels_list=targets["gt_labels"],
-            cls_loss=cfg.model.cls_loss,
-            box_loss=cfg.model.box_loss,
+            cls_loss=cls_loss_fn,
+            box_loss=box_loss_fn,
         )
 
     # 4. Training Loop & Resume
@@ -200,10 +220,23 @@ def run_training(cfg: TrainConfig) -> None:
             )
             del ckpt
 
+    cooldown_epoch = (
+        (cfg.optim.epochs - cooldown_epochs + 1) if cooldown_epochs > 0 else cfg.optim.epochs + 1
+    )
+    current_train_loader = (
+        cooldown_loader
+        if (cooldown_loader is not None and start_epoch >= cooldown_epoch)
+        else train_loader
+    )
+
     for epoch in range(start_epoch, cfg.optim.epochs + 1):
+        if epoch == cooldown_epoch and cooldown_loader is not None:
+            print(f"\n[Epoch {epoch}] Augmentation Cool-Down: Switched to clean DataLoader.")
+            current_train_loader = cooldown_loader
+
         mean_loss, current_step = train_one_epoch(
             model=model,
-            dataloader=train_loader,
+            dataloader=current_train_loader,
             optimizer=optimizer,
             loss_fn=loss_fn,
             device=device,

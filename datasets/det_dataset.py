@@ -6,9 +6,10 @@ Provides DetDataset and det_collate for training and evaluation.
 import json
 import os
 from collections import defaultdict
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import cv2
+import numpy as np
 import torch
 from torch.utils.data import Dataset
 
@@ -76,7 +77,22 @@ class DetDataset(Dataset):
     def __len__(self) -> int:
         return len(self.ids)
 
-    def __getitem__(self, index: int) -> Dict[str, Any]:
+    def get_raw_sample(
+        self, index: int
+    ) -> Tuple[np.ndarray, List[List[float]], List[int], int, Tuple[int, int]]:
+        """
+        Load raw untransformed RGB image, COCO [x, y, w, h] boxes, labels, img_id, and ori_shape.
+
+        Args:
+            index: Dataset sample index.
+
+        Returns:
+            img: np.ndarray (H, W, 3) in RGB uint8.
+            bboxes: List of bounding boxes in COCO [x, y, w, h] format.
+            labels: List of 0-indexed integer class labels.
+            img_id: Image identifier integer.
+            ori_shape: Original image (orig_h, orig_w) tuple.
+        """
         img_id = self.ids[index]
         info = self.images[img_id]
         path = os.path.join(self.root, info["file_name"])
@@ -86,15 +102,19 @@ class DetDataset(Dataset):
             raise FileNotFoundError(f"Image not found at path: {path}")
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        # Record original dimensions directly from loaded image array
         orig_h, orig_w = img.shape[:2]
         if info.get("height") and info.get("width"):
             orig_h = int(info["height"])
             orig_w = int(info["width"])
 
         items = self.anns.get(img_id, [])
-        bboxes = [b for b, _ in items]
+        bboxes = [list(b) for b, _ in items]
         labels = [lbl for _, lbl in items]
+
+        return img, bboxes, labels, img_id, (orig_h, orig_w)
+
+    def __getitem__(self, index: int) -> Dict[str, Any]:
+        img, bboxes, labels, img_id, (orig_h, orig_w) = self.get_raw_sample(index)
 
         if self.transform is not None:
             img, gt_boxes, gt_labels = self.transform(img, bboxes, labels)

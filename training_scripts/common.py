@@ -77,6 +77,12 @@ def add_common_training_args(parser: argparse.ArgumentParser) -> argparse.Argume
         default=None,
         help="Path to checkpoint .pth file to resume training from",
     )
+    parser.add_argument(
+        "--cooldown-epochs",
+        type=int,
+        default=None,
+        help="Number of final epochs to switch to clean evaluation transform cooldown (default: from config, or 0)",
+    )
     return parser
 
 
@@ -116,4 +122,7 @@ def apply_common_training_args(config: Any, args: argparse.Namespace) -> Any:
         config.optim.device = args.device
     if getattr(args, "resume", None) is not None:
         config.optim.resume = args.resume
+    if getattr(args, "cooldown_epochs", None) is not None:
+        if hasattr(config, "optim") and hasattr(config.optim, "cooldown_epochs"):
+            config.optim.cooldown_epochs = args.cooldown_epochs
     return config

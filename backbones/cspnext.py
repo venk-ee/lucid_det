@@ -9,11 +9,9 @@ from typing import List, Optional, Sequence, Tuple
 import torch
 import torch.nn as nn
 
-from backbones import register_backbone
 from backbones.common import SPPF, ConvModule, CSPLayer, SPPBottleneck
 
 
-@register_backbone("cspnext")
 class CSPNeXt(nn.Module):
     """
     CSPNeXt: CNN backbone designed for real-time object detection (RTMDet).

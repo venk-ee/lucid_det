@@ -10,8 +10,7 @@ import torch
 import torch.nn as nn
 
 from backbones.common import ConvModule, DepthwiseSeparableConv
-from heads import register_head
-from models.outputs import DetectionOutput
+from core.outputs import DetectionOutput
 
 
 def _share_submodule(src: nn.Module, dst: nn.Module) -> None:
@@ -27,9 +26,6 @@ def _share_submodule(src: nn.Module, dst: nn.Module) -> None:
         )
 
 
-@register_head("sep_bn_head")
-@register_head("sep_bn")
-@register_head("rtmdet")
 class SepBNHead(nn.Module):
     """
     Decoupled anchor-free detection head with level-separated BatchNorm.

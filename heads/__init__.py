@@ -1,61 +1,48 @@
 """
-Head registry and builder.
-
-Contract:
-    forward(feats: Sequence[Tensor]) -> Dict[str, Tensor] or Tuple[Tensor, ...]
+Detection Heads for LucidDet.
+Exports SepBNHead (RTMDet), YOLOXHead (YOLOX), and YOLOv1Head (YOLOv1).
 """
 
-from typing import Any, Callable, Dict, Optional, Type, Union
+from typing import Any, Dict, Type
 
 import torch.nn as nn
 
-HEADS: Dict[str, Type[nn.Module]] = {}
+from heads.sep_bn_head import SepBNHead
+from heads.yolov1_head import YOLOv1Head
+from heads.yolox_head import YOLOXHead
 
-
-def register_head(
-    name_or_cls: Optional[Union[str, Type[nn.Module]]] = None,
-) -> Any:
-    """
-    Decorator to register a head class in the HEADS registry.
-    Supports both @register_head and @register_head("custom_name").
-    """
-    if callable(name_or_cls):
-        cls = name_or_cls
-        key = cls.__name__.lower()
-        if key in HEADS:
-            raise KeyError(f"Head '{key}' is already registered.")
-        HEADS[key] = cls
-        return cls
-
-    def decorator(cls: Type[nn.Module]) -> Type[nn.Module]:
-        key = name_or_cls if name_or_cls is not None else cls.__name__.lower()
-        if key in HEADS:
-            raise KeyError(f"Head '{key}' is already registered.")
-        HEADS[key] = cls
-        return cls
-
-    return decorator
+HEAD_MAP: Dict[str, Type[nn.Module]] = {
+    "sep_bn_head": SepBNHead,
+    "sep_bn": SepBNHead,
+    "rtmdet": SepBNHead,
+    "yolox_head": YOLOXHead,
+    "yolox": YOLOXHead,
+    "yolov1_head": YOLOv1Head,
+    "yolov1": YOLOv1Head,
+}
 
 
 def build_head(name: str, **kwargs: Any) -> nn.Module:
     """
-    Build a detection head by name from the HEADS registry.
+    Build a detection head by name from explicit HEAD_MAP.
 
     Args:
-        name: Name of the registered head.
+        name: Name of the head ('sep_bn_head', 'yolox_head', 'yolov1_head').
         **kwargs: Arguments passed to the head constructor.
 
     Returns:
         Instantiated head nn.Module.
     """
-    if name not in HEADS:
-        raise ValueError(f"Unknown head '{name}'. Available heads: {sorted(HEADS.keys())}")
-    return HEADS[name](**kwargs)
+    key = name.lower()
+    if key not in HEAD_MAP:
+        raise ValueError(f"Unknown head '{name}'. Available heads: {sorted(HEAD_MAP.keys())}")
+    return HEAD_MAP[key](**kwargs)
 
 
-# Import concrete implementations to trigger registration
-from heads.sep_bn_head import SepBNHead
-from heads.yolov1_head import YOLOv1Head
-from heads.yolox_head import YOLOXHead
-
-__all__ = ["HEADS", "SepBNHead", "YOLOXHead", "YOLOv1Head", "register_head", "build_head"]
+__all__ = [
+    "SepBNHead",
+    "YOLOXHead",
+    "YOLOv1Head",
+    "HEAD_MAP",
+    "build_head",
+]

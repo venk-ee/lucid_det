@@ -9,10 +9,8 @@ import torch
 from torch import nn
 
 from backbones.common import ConvModule, CSPLayer, DepthwiseSeparableConv
-from necks import register_neck
 
 
-@register_neck("cspnext_pafpn")
 class CSPNeXtPAFPN(nn.Module):
     """
     Path Aggregation FPN with CSPNeXt blocks.

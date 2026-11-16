@@ -10,11 +10,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from backbones.common import ConvModule, CSPLayer
-from necks import register_neck
 
 
-@register_neck("pafpn")
-@register_neck("yolox_pafpn")
 class YOLOXPAFPN(nn.Module):
     """
     Standard Path Aggregation FPN for YOLOX.

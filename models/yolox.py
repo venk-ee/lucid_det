@@ -3,18 +3,21 @@ YOLOX detector model class.
 Assembles CSPDarknet backbone, YOLOXPAFPN neck, and Decoupled YOLOXHead.
 """
 
-from typing import Any
+from typing import Any, Optional
 
-from backbones import build_backbone
-from heads import build_head
+import torch.nn as nn
+
+from backbones import CSPDarknet
+from heads import YOLOXHead
 from models.single_stage import SingleStageDetector
-from necks import build_neck
+from necks import YOLOXPAFPN
 
 
 class YOLOX(SingleStageDetector):
     """
     YOLOX: Exceeding YOLO Series in 2021.
     Composes CSPDarknet Backbone -> YOLOXPAFPN Neck -> Decoupled YOLOXHead.
+    Supports direct dependency injection of backbone, neck, and head modules.
     """
 
     def __init__(
@@ -25,13 +28,16 @@ class YOLOX(SingleStageDetector):
         nms_thresh: float = 0.65,
         max_num: int = 100,
         frozen_stages: int = -1,
+        backbone: Optional[nn.Module] = None,
+        neck: Optional[nn.Module] = None,
+        head: Optional[nn.Module] = None,
         **kwargs: Any,
     ) -> None:
-        backbone = build_backbone("cspdarknet", arch=arch, frozen_stages=frozen_stages)
-        in_channels = list(backbone.out_channels)
-        strides = tuple(backbone.strides)
+        if backbone is None:
+            backbone = CSPDarknet(arch=arch, frozen_stages=frozen_stages)
 
-        neck_channels = in_channels[0]
+        in_channels = list(getattr(backbone, "out_channels", [128, 256, 512]))
+        strides = tuple(getattr(backbone, "strides", (8, 16, 32)))
         depth_mult = {
             "tiny": 0.33,
             "s": 0.33,
@@ -41,19 +47,27 @@ class YOLOX(SingleStageDetector):
         }.get(arch, 0.33)
         num_csp_blocks = max(round(3 * depth_mult), 1)
 
-        neck = build_neck(
-            "yolox_pafpn",
-            in_channels=in_channels,
-            num_csp_blocks=num_csp_blocks,
-        )
+        if neck is None:
+            neck = YOLOXPAFPN(
+                in_channels=in_channels,
+                num_csp_blocks=num_csp_blocks,
+            )
 
-        head = build_head(
-            "yolox_head",
-            num_classes=num_classes,
-            in_channels=in_channels,
-            feat_channels=neck_channels,
-            strides=strides,
-        )
+        head_in_channels = in_channels
+        if hasattr(neck, "out_channels"):
+            neck_out = getattr(neck, "out_channels")
+            if isinstance(neck_out, (list, tuple)):
+                head_in_channels = list(neck_out)
+            elif isinstance(neck_out, int):
+                head_in_channels = [neck_out] * len(strides)
+
+        if head is None:
+            head = YOLOXHead(
+                num_classes=num_classes,
+                in_channels=head_in_channels,
+                feat_channels=head_in_channels[0],
+                strides=strides,
+            )
 
         super().__init__(
             backbone=backbone,

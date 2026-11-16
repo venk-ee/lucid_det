@@ -8,12 +8,9 @@ from typing import List, Sequence
 import torch
 import torch.nn as nn
 
-from heads import register_head
-from models.outputs import DetectionOutput
+from core.outputs import DetectionOutput
 
 
-@register_head("yolov1_head")
-@register_head("yolov1")
 class YOLOv1Head(nn.Module):
     """
     YOLOv1 Fully Connected Detection Head.

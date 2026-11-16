@@ -1,63 +1,46 @@
 """
-Neck registry and builder.
-
-Contract:
-    forward(feats: Sequence[Tensor]) -> Tuple[Tensor, ...]
-    Module must expose:
-        .out_channels: int or Sequence[int]
+Multi-scale feature fusion necks for LucidDet.
+Exports CSPNeXtPAFPN (RTMDet), YOLOXPAFPN (YOLOX), and IdentityNeck (YOLOv1).
 """
 
-from typing import Any, Callable, Dict, Optional, Type, Union
+from typing import Any, Dict, Type
 
 import torch.nn as nn
 
-NECKS: Dict[str, Type[nn.Module]] = {}
+from necks.cspnext_pafpn import CSPNeXtPAFPN
+from necks.identity import IdentityNeck
+from necks.pafpn import YOLOXPAFPN
 
-
-def register_neck(
-    name_or_cls: Optional[Union[str, Type[nn.Module]]] = None,
-) -> Any:
-    """
-    Decorator to register a neck class in the NECKS registry.
-    Supports both @register_neck and @register_neck("custom_name").
-    """
-    if callable(name_or_cls):
-        cls = name_or_cls
-        key = cls.__name__.lower()
-        if key in NECKS:
-            raise KeyError(f"Neck '{key}' is already registered.")
-        NECKS[key] = cls
-        return cls
-
-    def decorator(cls: Type[nn.Module]) -> Type[nn.Module]:
-        key = name_or_cls if name_or_cls is not None else cls.__name__.lower()
-        if key in NECKS:
-            raise KeyError(f"Neck '{key}' is already registered.")
-        NECKS[key] = cls
-        return cls
-
-    return decorator
+NECK_MAP: Dict[str, Type[nn.Module]] = {
+    "cspnext_pafpn": CSPNeXtPAFPN,
+    "pafpn": YOLOXPAFPN,
+    "yolox_pafpn": YOLOXPAFPN,
+    "identity": IdentityNeck,
+    "identity_neck": IdentityNeck,
+}
 
 
 def build_neck(name: str = "pafpn", **kwargs: Any) -> nn.Module:
     """
-    Build a neck by name from the NECKS registry.
+    Build a neck by name from the explicit NECK_MAP.
 
     Args:
-        name: Name of the registered neck.
+        name: Name of the neck ('cspnext_pafpn', 'yolox_pafpn', 'identity').
         **kwargs: Arguments passed to the neck constructor.
 
     Returns:
         Instantiated neck nn.Module.
     """
-    if name not in NECKS:
-        raise ValueError(f"Unknown neck '{name}'. Available necks: {sorted(NECKS.keys())}")
-    return NECKS[name](**kwargs)
+    key = name.lower()
+    if key not in NECK_MAP:
+        raise ValueError(f"Unknown neck '{name}'. Available necks: {sorted(NECK_MAP.keys())}")
+    return NECK_MAP[key](**kwargs)
 
 
-# Import concrete implementations to trigger registration
-from necks.cspnext_pafpn import CSPNeXtPAFPN
-from necks.identity import IdentityNeck
-from necks.pafpn import YOLOXPAFPN
-
-__all__ = ["NECKS", "CSPNeXtPAFPN", "YOLOXPAFPN", "IdentityNeck", "register_neck", "build_neck"]
+__all__ = [
+    "CSPNeXtPAFPN",
+    "YOLOXPAFPN",
+    "IdentityNeck",
+    "NECK_MAP",
+    "build_neck",
+]

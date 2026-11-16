@@ -18,36 +18,36 @@ if ROOT not in sys.path:
 
 import torch
 
-from losses import YOLOv1Loss, det_loss
+from losses import GIoULoss, QualityFocalLoss, YOLOv1Loss, det_loss
 from models import build_rtmdet, build_yolov1, build_yolox
 
 
-def run_rtmdet_sanity(device: torch.device, arch: str = "tiny", num_classes: int = 80) -> None:
+def run_rtmdet_sanity(
+    device: torch.device, arch: str = "tiny", num_classes: int = 80, batch_size: int = 1
+) -> None:
     print(f"\n--- [RTMDet] arch={arch}, classes={num_classes} ---")
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
     model = build_rtmdet(arch=arch, num_classes=num_classes).to(device)
     total_params = sum(p.numel() for p in model.parameters())
     print(f"  Params: {total_params:,}")
 
     model.train()
-    batch_size = 2
     dummy_imgs = torch.randn(batch_size, 3, 640, 640, device=device)
     outputs = model(dummy_imgs, training_override=True)
 
     dummy_gt_boxes = [
-        torch.tensor([[50.0, 50.0, 200.0, 200.0], [300.0, 300.0, 500.0, 500.0]], device=device),
-        torch.tensor([[100.0, 150.0, 400.0, 450.0]], device=device),
+        torch.tensor([[50.0, 50.0, 200.0, 200.0]], device=device) for _ in range(batch_size)
     ]
-    dummy_gt_labels = [
-        torch.tensor([0, 1], device=device),
-        torch.tensor([2], device=device),
-    ]
+    dummy_gt_labels = [torch.tensor([0], device=device) for _ in range(batch_size)]
 
+    # Direct dependency injection of loss modules
     total_loss, loss_dict = det_loss(
         model_out=outputs,
         gt_boxes_list=dummy_gt_boxes,
         gt_labels_list=dummy_gt_labels,
-        cls_loss="qfl",
-        box_loss="giou",
+        cls_loss=QualityFocalLoss(),
+        box_loss=GIoULoss(),
     )
     print(
         f"  Train Loss: Total={total_loss.item():.4f} | Cls={loss_dict['loss_cls'].item():.4f} | Box={loss_dict['loss_box'].item():.4f}"
@@ -71,33 +71,37 @@ def run_rtmdet_sanity(device: torch.device, arch: str = "tiny", num_classes: int
     print(f"  Inference NMS decoding OK (Batch={len(detections)})")
     print(f"  [PASS] RTMDet ({arch}) PASSED")
 
+    del model, dummy_imgs, outputs, total_loss
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
 
-def run_yolox_sanity(device: torch.device, arch: str = "s", num_classes: int = 80) -> None:
+
+def run_yolox_sanity(
+    device: torch.device, arch: str = "s", num_classes: int = 80, batch_size: int = 1
+) -> None:
     print(f"\n--- [YOLOX] arch={arch}, classes={num_classes} ---")
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
     model = build_yolox(arch=arch, num_classes=num_classes).to(device)
     total_params = sum(p.numel() for p in model.parameters())
     print(f"  Params: {total_params:,}")
 
     model.train()
-    batch_size = 2
     dummy_imgs = torch.randn(batch_size, 3, 640, 640, device=device)
     outputs = model(dummy_imgs, training_override=True)
 
     dummy_gt_boxes = [
-        torch.tensor([[50.0, 50.0, 200.0, 200.0], [300.0, 300.0, 500.0, 500.0]], device=device),
-        torch.tensor([[100.0, 150.0, 400.0, 450.0]], device=device),
+        torch.tensor([[50.0, 50.0, 200.0, 200.0]], device=device) for _ in range(batch_size)
     ]
-    dummy_gt_labels = [
-        torch.tensor([0, 1], device=device),
-        torch.tensor([2], device=device),
-    ]
+    dummy_gt_labels = [torch.tensor([0], device=device) for _ in range(batch_size)]
 
+    # Direct dependency injection of loss modules
     total_loss, loss_dict = det_loss(
         model_out=outputs,
         gt_boxes_list=dummy_gt_boxes,
         gt_labels_list=dummy_gt_labels,
-        cls_loss="qfl",
-        box_loss="giou",
+        cls_loss=QualityFocalLoss(),
+        box_loss=GIoULoss(),
     )
     print(
         f"  Train Loss: Total={total_loss.item():.4f} | Cls={loss_dict['loss_cls'].item():.4f} | Box={loss_dict['loss_box'].item():.4f}"
@@ -121,15 +125,26 @@ def run_yolox_sanity(device: torch.device, arch: str = "s", num_classes: int = 8
     print(f"  Inference NMS decoding OK (Batch={len(detections)})")
     print(f"  [PASS] YOLOX ({arch}) PASSED")
 
+    del model, dummy_imgs, outputs, total_loss
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
 
-def run_yolov1_sanity(device: torch.device, num_classes: int = 20, S: int = 7, B: int = 2) -> None:
+
+def run_yolov1_sanity(
+    device: torch.device,
+    num_classes: int = 20,
+    S: int = 7,
+    B: int = 2,
+    batch_size: int = 1,
+) -> None:
     print(f"\n--- [YOLOv1] classes={num_classes}, S={S}, B={B} ---")
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
     model = build_yolov1(num_classes=num_classes, S=S, B=B).to(device)
     total_params = sum(p.numel() for p in model.parameters())
     print(f"  Params: {total_params:,}")
 
     model.train()
-    batch_size = 2
     dummy_imgs = torch.randn(batch_size, 3, 448, 448, device=device)
     outputs = model(dummy_imgs, training_override=True)
 
@@ -166,6 +181,10 @@ def run_yolov1_sanity(device: torch.device, num_classes: int = 20, S: int = 7, B
     print(f"  Inference NMS decoding OK (Batch={len(detections)})")
     print("  [PASS] YOLOv1 PASSED")
 
+    del model, dummy_imgs, outputs, total_loss
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
+
 
 def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -187,7 +206,7 @@ def main() -> None:
     # 3. YOLOv1
     run_yolov1_sanity(device, num_classes=20, S=7, B=2)
 
-    print(f"ALL 3 MODEL FAMILIES (RTMDet, YOLOX, YOLOv1) PASSED ON {device.type.upper()}!")
+    print(f"\nALL 3 MODEL FAMILIES (RTMDet, YOLOX, YOLOv1) PASSED ON {device.type.upper()}!")
 
 
 if __name__ == "__main__":

@@ -26,6 +26,7 @@ from core.nms import (
     multiclass_nms,
     multiclass_nms_batch,
 )
+from core.outputs import DetectionOutput
 
 __all__ = [
     "box_xywh_to_xyxy",
@@ -46,4 +47,5 @@ __all__ = [
     "batched_nms",
     "multiclass_nms",
     "multiclass_nms_batch",
+    "DetectionOutput",
 ]

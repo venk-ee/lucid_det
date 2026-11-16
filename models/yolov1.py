@@ -5,16 +5,19 @@ Assembles Darknet24 backbone and YOLOv1Head.
 
 from typing import Any, Optional
 
-from backbones import build_backbone
-from heads import build_head
+import torch.nn as nn
+
+from backbones import Darknet24
+from heads import YOLOv1Head
 from models.single_stage import SingleStageDetector
-from necks import build_neck
+from necks import IdentityNeck
 
 
 class YOLOv1(SingleStageDetector):
     """
     YOLOv1: You Only Look Once Unified Real-Time Object Detector (Redmon et al. 2016).
     Composes Darknet24 Backbone -> YOLOv1Head (FC Detection Head).
+    Supports direct dependency injection of backbone, neck, and head modules.
     """
 
     def __init__(
@@ -28,6 +31,9 @@ class YOLOv1(SingleStageDetector):
         S: Optional[int] = None,
         B: Optional[int] = None,
         img_size: float = 640.0,
+        backbone: Optional[nn.Module] = None,
+        neck: Optional[nn.Module] = None,
+        head: Optional[nn.Module] = None,
         **kwargs: Any,
     ) -> None:
         if S is not None:
@@ -35,16 +41,26 @@ class YOLOv1(SingleStageDetector):
         if B is not None:
             num_boxes = B
 
-        backbone = build_backbone("darknet24", in_channels=3)
-        neck = build_neck("identity")
-        head = build_head(
-            "yolov1_head",
-            in_channels=1024,
-            num_classes=num_classes,
-            split_size=split_size,
-            num_boxes=num_boxes,
-            img_size=img_size,
-        )
+        if backbone is None:
+            backbone = Darknet24(in_channels=3)
+        if neck is None:
+            neck = IdentityNeck()
+        if head is None:
+            in_ch = 1024
+            if hasattr(neck, "out_channels"):
+                out_c = getattr(neck, "out_channels")
+                in_ch = out_c[0] if isinstance(out_c, (list, tuple)) else out_c
+            elif hasattr(backbone, "out_channels"):
+                out_c = getattr(backbone, "out_channels")
+                in_ch = out_c[0] if isinstance(out_c, (list, tuple)) else out_c
+
+            head = YOLOv1Head(
+                in_channels=in_ch,
+                num_classes=num_classes,
+                split_size=split_size,
+                num_boxes=num_boxes,
+                img_size=img_size,
+            )
 
         super().__init__(
             backbone=backbone,
