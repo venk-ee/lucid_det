@@ -6,7 +6,7 @@ Assembles CSPNeXt backbone, CSPNeXtPAFPN neck, and SepBNHead head.
 from typing import Any
 
 from backbones import build_backbone
-from heads import build_head
+from heads.sep_bn_head import SepBNHead
 from models.single_stage import SingleStageDetector
 from necks import build_neck
 
@@ -43,8 +43,7 @@ class RTMDet(SingleStageDetector):
             use_depthwise=use_depthwise,
         )
 
-        head = build_head(
-            "sep_bn_head",
+        head = SepBNHead(
             num_classes=num_classes,
             in_channels=neck_channels,
             feat_channels=neck_channels,

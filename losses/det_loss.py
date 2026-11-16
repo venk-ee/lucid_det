@@ -30,6 +30,10 @@ BOX_LOSS_MAP: Dict[str, Type[nn.Module]] = {
 }
 
 
+_DEFAULT_CLS_INSTANCES: Dict[str, Callable] = {}
+_DEFAULT_BOX_INSTANCES: Dict[str, Callable] = {}
+
+
 def resolve_cls_loss(cls_loss: Union[str, Type[nn.Module], nn.Module, Callable]) -> Callable:
     """Resolve classification loss into a callable module or function."""
     if isinstance(cls_loss, str):
@@ -38,7 +42,9 @@ def resolve_cls_loss(cls_loss: Union[str, Type[nn.Module], nn.Module, Callable])
             raise ValueError(
                 f"Unknown classification loss '{cls_loss}'. Available: {sorted(CLS_LOSS_MAP.keys())}"
             )
-        return CLS_LOSS_MAP[key]()
+        if key not in _DEFAULT_CLS_INSTANCES:
+            _DEFAULT_CLS_INSTANCES[key] = CLS_LOSS_MAP[key]()
+        return _DEFAULT_CLS_INSTANCES[key]
     if isinstance(cls_loss, type) and issubclass(cls_loss, nn.Module):
         return cls_loss()
     if callable(cls_loss):
@@ -56,7 +62,9 @@ def resolve_box_loss(box_loss: Union[str, Type[nn.Module], nn.Module, Callable])
             raise ValueError(
                 f"Unknown box loss '{box_loss}'. Available: {sorted(BOX_LOSS_MAP.keys())}"
             )
-        return BOX_LOSS_MAP[key]()
+        if key not in _DEFAULT_BOX_INSTANCES:
+            _DEFAULT_BOX_INSTANCES[key] = BOX_LOSS_MAP[key]()
+        return _DEFAULT_BOX_INSTANCES[key]
     if isinstance(box_loss, type) and issubclass(box_loss, nn.Module):
         return box_loss()
     if callable(box_loss):
@@ -151,7 +159,7 @@ def det_loss(
     if box_parts:
         loss_box = torch.cat(box_parts).sum() / avg_factor
     else:
-        loss_box = (pred_boxes.sum(dim=-1) * 0.0).sum()
+        loss_box = pred_boxes.sum() * 0.0
 
     total_loss = loss_cls + box_weight * loss_box
     return total_loss, {

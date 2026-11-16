@@ -6,7 +6,7 @@ Assembles Darknet24 backbone and YOLOv1Head.
 from typing import Any, Optional
 
 from backbones import build_backbone
-from heads import build_head
+from heads.yolov1_head import YOLOv1Head
 from models.single_stage import SingleStageDetector
 from necks import build_neck
 
@@ -37,8 +37,7 @@ class YOLOv1(SingleStageDetector):
 
         backbone = build_backbone("darknet24", in_channels=3)
         neck = build_neck("identity")
-        head = build_head(
-            "yolov1_head",
+        head = YOLOv1Head(
             in_channels=1024,
             num_classes=num_classes,
             split_size=split_size,
