@@ -117,6 +117,10 @@ class SingleStageDetector(nn.Module):
             model_kwargs["arch"] = meta["arch"]
         if "num_classes" not in model_kwargs and "num_classes" in meta:
             model_kwargs["num_classes"] = meta["num_classes"]
+        if "split_size" not in model_kwargs and "split_size" in meta:
+            model_kwargs["split_size"] = meta["split_size"]
+        if "num_boxes" not in model_kwargs and "num_boxes" in meta:
+            model_kwargs["num_boxes"] = meta["num_boxes"]
 
         model = cls(**model_kwargs)
         state_dict = state["model"] if isinstance(state, dict) and "model" in state else state
