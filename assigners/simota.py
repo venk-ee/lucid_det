@@ -9,7 +9,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from assigners import register_assigner
 from core.iou import box_iou
 
 EPS = 1e-7
@@ -137,8 +136,6 @@ def dynamic_soft_label_assign(
     return labels, label_weights, bbox_targets, assign_metrics
 
 
-@register_assigner("simota")
-@register_assigner("dynamic_soft_label_assigner")
 class DynamicSoftLabelAssigner(nn.Module):
     """
     Module wrapper for SimOTA / Dynamic Soft Label Assignment.

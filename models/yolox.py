@@ -5,10 +5,10 @@ Assembles CSPDarknet backbone, YOLOXPAFPN neck, and Decoupled YOLOXHead.
 
 from typing import Any
 
-from backbones import build_backbone
+from backbones import CSPDarknet
 from heads import YOLOXHead
 from models.single_stage import SingleStageDetector
-from necks import build_neck
+from necks import YOLOXPAFPN
 
 
 class YOLOX(SingleStageDetector):
@@ -27,7 +27,7 @@ class YOLOX(SingleStageDetector):
         frozen_stages: int = -1,
         **kwargs: Any,
     ) -> None:
-        backbone = build_backbone("cspdarknet", arch=arch, frozen_stages=frozen_stages)
+        backbone = CSPDarknet(arch=arch, frozen_stages=frozen_stages)
         in_channels = list(backbone.out_channels)
         strides = tuple(backbone.strides)
 
@@ -41,8 +41,7 @@ class YOLOX(SingleStageDetector):
         }.get(arch, 0.33)
         num_csp_blocks = max(round(3 * depth_mult), 1)
 
-        neck = build_neck(
-            "yolox_pafpn",
+        neck = YOLOXPAFPN(
             in_channels=in_channels,
             num_csp_blocks=num_csp_blocks,
         )

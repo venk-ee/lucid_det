@@ -5,10 +5,10 @@ Assembles CSPNeXt backbone, CSPNeXtPAFPN neck, and SepBNHead head.
 
 from typing import Any
 
-from backbones import build_backbone
+from backbones import CSPNeXt
 from heads import SepBNHead
 from models.single_stage import SingleStageDetector
-from necks import build_neck
+from necks import CSPNeXtPAFPN
 
 
 class RTMDet(SingleStageDetector):
@@ -27,7 +27,7 @@ class RTMDet(SingleStageDetector):
         frozen_stages: int = -1,
         **kwargs: Any,
     ) -> None:
-        backbone = build_backbone("cspnext", arch=arch, frozen_stages=frozen_stages)
+        backbone = CSPNeXt(arch=arch, frozen_stages=frozen_stages)
         in_channels = list(backbone.out_channels)
         strides = tuple(backbone.strides)
 
@@ -35,8 +35,7 @@ class RTMDet(SingleStageDetector):
         use_depthwise = arch in ("tiny", "tiny-dw")
         exp_on_reg = arch not in ("tiny", "tiny-dw")
 
-        neck = build_neck(
-            "cspnext_pafpn",
+        neck = CSPNeXtPAFPN(
             in_channels=in_channels,
             out_channels=neck_channels,
             num_csp_blocks=1,

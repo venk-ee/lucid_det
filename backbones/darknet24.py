@@ -8,8 +8,6 @@ from typing import List, Tuple
 import torch
 import torch.nn as nn
 
-from backbones import register_backbone
-
 
 class CNNBlock(nn.Module):
     """Conv2d + BatchNorm2d + LeakyReLU(0.1)."""
@@ -38,7 +36,6 @@ class CNNBlock(nn.Module):
         return self.act(self.bn(self.conv(x)))
 
 
-@register_backbone("darknet24")
 class Darknet24(nn.Module):
     """
     YOLOv1 Darknet-24 backbone.

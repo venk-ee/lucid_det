@@ -8,10 +8,6 @@ from typing import Any, Sequence, Tuple
 import torch
 import torch.nn as nn
 
-from necks import register_neck
-
-
-@register_neck("identity")
 class IdentityNeck(nn.Module):
     """
     Passthrough identity neck for single-scale detectors.

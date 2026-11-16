@@ -8,11 +8,9 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import torch
 import torch.nn as nn
 
-from backbones import register_backbone
 from backbones.common import SPPF, ConvModule, CSPLayer
 
 
-@register_backbone("cspdarknet")
 class CSPDarknet(nn.Module):
     """
     CSPDarknet backbone with Cross Stage Partial connections.
