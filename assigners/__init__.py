@@ -3,7 +3,7 @@ Target assigners for LucidDet.
 Exports dynamic_soft_label_assign and DynamicSoftLabelAssigner.
 """
 
-from typing import Any, Callable, Dict
+from typing import Any, Dict
 
 from assigners.simota import DynamicSoftLabelAssigner, dynamic_soft_label_assign
 

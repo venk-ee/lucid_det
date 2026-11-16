@@ -53,6 +53,9 @@ def test_iou_losses_properties(loss_cls) -> None:
 
 
 def test_resolve_cls_loss() -> None:
+    assert "qfl" in CLS_LOSS_MAP
+    assert CLS_LOSS_MAP["qfl"] is QualityFocalLoss
+
     # String lookup
     resolved = resolve_cls_loss("qfl")
     assert isinstance(resolved, QualityFocalLoss)
@@ -73,6 +76,13 @@ def test_resolve_cls_loss() -> None:
 
 
 def test_resolve_box_loss() -> None:
+    assert "giou" in BOX_LOSS_MAP
+    assert BOX_LOSS_MAP["giou"] is GIoULoss
+    assert "ciou" in BOX_LOSS_MAP
+    assert BOX_LOSS_MAP["ciou"] is CIoULoss
+    assert "iou" in BOX_LOSS_MAP
+    assert BOX_LOSS_MAP["iou"] is IoULoss
+
     # String lookup
     resolved = resolve_box_loss("giou")
     assert isinstance(resolved, GIoULoss)

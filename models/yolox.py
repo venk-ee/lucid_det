@@ -3,7 +3,9 @@ YOLOX detector model class.
 Assembles CSPDarknet backbone, YOLOXPAFPN neck, and Decoupled YOLOXHead.
 """
 
-from typing import Any
+from typing import Any, Optional
+
+import torch.nn as nn
 
 from backbones import CSPDarknet
 from heads import YOLOXHead
@@ -15,6 +17,7 @@ class YOLOX(SingleStageDetector):
     """
     YOLOX: Exceeding YOLO Series in 2021.
     Composes CSPDarknet Backbone -> YOLOXPAFPN Neck -> Decoupled YOLOXHead.
+    Supports direct dependency injection of backbone, neck, and head modules.
     """
 
     def __init__(
@@ -25,12 +28,16 @@ class YOLOX(SingleStageDetector):
         nms_thresh: float = 0.65,
         max_num: int = 100,
         frozen_stages: int = -1,
+        backbone: Optional[nn.Module] = None,
+        neck: Optional[nn.Module] = None,
+        head: Optional[nn.Module] = None,
         **kwargs: Any,
     ) -> None:
-        backbone = CSPDarknet(arch=arch, frozen_stages=frozen_stages)
-        in_channels = list(backbone.out_channels)
-        strides = tuple(backbone.strides)
+        if backbone is None:
+            backbone = CSPDarknet(arch=arch, frozen_stages=frozen_stages)
 
+        in_channels = list(getattr(backbone, "out_channels", [128, 256, 512]))
+        strides = tuple(getattr(backbone, "strides", (8, 16, 32)))
         neck_channels = in_channels[0]
         depth_mult = {
             "tiny": 0.33,
@@ -41,17 +48,19 @@ class YOLOX(SingleStageDetector):
         }.get(arch, 0.33)
         num_csp_blocks = max(round(3 * depth_mult), 1)
 
-        neck = YOLOXPAFPN(
-            in_channels=in_channels,
-            num_csp_blocks=num_csp_blocks,
-        )
+        if neck is None:
+            neck = YOLOXPAFPN(
+                in_channels=in_channels,
+                num_csp_blocks=num_csp_blocks,
+            )
 
-        head = YOLOXHead(
-            num_classes=num_classes,
-            in_channels=in_channels,
-            feat_channels=neck_channels,
-            strides=strides,
-        )
+        if head is None:
+            head = YOLOXHead(
+                num_classes=num_classes,
+                in_channels=in_channels,
+                feat_channels=neck_channels,
+                strides=strides,
+            )
 
         super().__init__(
             backbone=backbone,

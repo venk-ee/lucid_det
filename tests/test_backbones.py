@@ -49,6 +49,13 @@ def test_darknet24_forward() -> None:
 
 
 def test_build_backbone_map() -> None:
+    assert "cspnext" in BACKBONE_MAP
+    assert BACKBONE_MAP["cspnext"] is CSPNeXt
+    assert "cspdarknet" in BACKBONE_MAP
+    assert BACKBONE_MAP["cspdarknet"] is CSPDarknet
+    assert "darknet24" in BACKBONE_MAP
+    assert BACKBONE_MAP["darknet24"] is Darknet24
+
     b_rtm = build_backbone("cspnext", arch="tiny")
     assert isinstance(b_rtm, CSPNeXt)
 

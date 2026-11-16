@@ -3,7 +3,7 @@ Models package: Assembled neural network detector models.
 Top-level model exports: from models import RTMDet, YOLOX, YOLOv1.
 """
 
-from models.outputs import DetectionOutput
+from core.outputs import DetectionOutput
 from models.rtmdet import RTMDet
 from models.single_stage import SingleStageDetector
 from models.yolov1 import YOLOv1

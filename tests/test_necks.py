@@ -55,6 +55,13 @@ def test_identity_neck_forward() -> None:
 
 
 def test_build_neck_map() -> None:
+    assert "cspnext_pafpn" in NECK_MAP
+    assert NECK_MAP["cspnext_pafpn"] is CSPNeXtPAFPN
+    assert "pafpn" in NECK_MAP
+    assert NECK_MAP["pafpn"] is YOLOXPAFPN
+    assert "identity" in NECK_MAP
+    assert NECK_MAP["identity"] is IdentityNeck
+
     n_rtm = build_neck("cspnext_pafpn", in_channels=[64, 128, 256], out_channels=64)
     assert isinstance(n_rtm, CSPNeXtPAFPN)
 

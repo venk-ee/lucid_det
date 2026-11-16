@@ -68,6 +68,11 @@ def test_dynamic_soft_label_assigner_module() -> None:
 
 
 def test_build_assigner_map() -> None:
+    assert "simota" in ASSIGNER_MAP
+    assert ASSIGNER_MAP["simota"] is DynamicSoftLabelAssigner
+    assert "dynamic_soft_label_assign" in ASSIGNER_MAP
+    assert ASSIGNER_MAP["dynamic_soft_label_assign"] is dynamic_soft_label_assign
+
     assigner_fn = build_assigner("dynamic_soft_label_assign")
     assert assigner_fn is dynamic_soft_label_assign
 

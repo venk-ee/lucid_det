@@ -71,6 +71,13 @@ def test_yolov1_head_forward() -> None:
 
 
 def test_build_head_via_head_map() -> None:
+    assert "sep_bn_head" in HEAD_MAP
+    assert HEAD_MAP["sep_bn_head"] is SepBNHead
+    assert "yolox_head" in HEAD_MAP
+    assert HEAD_MAP["yolox_head"] is YOLOXHead
+    assert "yolov1_head" in HEAD_MAP
+    assert HEAD_MAP["yolov1_head"] is YOLOv1Head
+
     # Explicit builder verification
     head_rtm = build_head("sep_bn_head", num_classes=10, in_channels=64, feat_channels=64, strides=(8, 16, 32))
     assert isinstance(head_rtm, SepBNHead)

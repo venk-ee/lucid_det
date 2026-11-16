@@ -5,6 +5,8 @@ Assembles Darknet24 backbone and YOLOv1Head.
 
 from typing import Any, Optional
 
+import torch.nn as nn
+
 from backbones import Darknet24
 from heads import YOLOv1Head
 from models.single_stage import SingleStageDetector
@@ -15,6 +17,7 @@ class YOLOv1(SingleStageDetector):
     """
     YOLOv1: You Only Look Once Unified Real-Time Object Detector (Redmon et al. 2016).
     Composes Darknet24 Backbone -> YOLOv1Head (FC Detection Head).
+    Supports direct dependency injection of backbone, neck, and head modules.
     """
 
     def __init__(
@@ -28,6 +31,9 @@ class YOLOv1(SingleStageDetector):
         S: Optional[int] = None,
         B: Optional[int] = None,
         img_size: float = 640.0,
+        backbone: Optional[nn.Module] = None,
+        neck: Optional[nn.Module] = None,
+        head: Optional[nn.Module] = None,
         **kwargs: Any,
     ) -> None:
         if S is not None:
@@ -35,15 +41,18 @@ class YOLOv1(SingleStageDetector):
         if B is not None:
             num_boxes = B
 
-        backbone = Darknet24(in_channels=3)
-        neck = IdentityNeck()
-        head = YOLOv1Head(
-            in_channels=1024,
-            num_classes=num_classes,
-            split_size=split_size,
-            num_boxes=num_boxes,
-            img_size=img_size,
-        )
+        if backbone is None:
+            backbone = Darknet24(in_channels=3)
+        if neck is None:
+            neck = IdentityNeck()
+        if head is None:
+            head = YOLOv1Head(
+                in_channels=1024,
+                num_classes=num_classes,
+                split_size=split_size,
+                num_boxes=num_boxes,
+                img_size=img_size,
+            )
 
         super().__init__(
             backbone=backbone,

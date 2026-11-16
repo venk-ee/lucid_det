@@ -24,7 +24,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from datasets import DetDataset, det_collate
 from engine import COCOEvaluator, ModelEMA, build_lr_scheduler
-from losses import det_loss
+from losses import det_loss, resolve_box_loss, resolve_cls_loss
 from models import RTMDet
 from runners import load_checkpoint, save_checkpoint, train_one_epoch, val_one_epoch
 from training_scripts.common import add_common_training_args, apply_common_training_args
@@ -173,13 +173,16 @@ def run_training(cfg: TrainConfig) -> None:
     use_amp = cfg.optim.use_amp and (device.type == "cuda")
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
 
+    cls_loss_fn = resolve_cls_loss(cfg.model.cls_loss)
+    box_loss_fn = resolve_box_loss(cfg.model.box_loss)
+
     def loss_fn(outputs, targets):
         return det_loss(
             model_out=outputs,
             gt_boxes_list=targets["gt_boxes"],
             gt_labels_list=targets["gt_labels"],
-            cls_loss=cfg.model.cls_loss,
-            box_loss=cfg.model.box_loss,
+            cls_loss=cls_loss_fn,
+            box_loss=box_loss_fn,
         )
 
     # 4. Training Loop & Resume
