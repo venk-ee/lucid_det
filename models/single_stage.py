@@ -42,6 +42,7 @@ class SingleStageDetector(nn.Module):
         nms_thresh: float = 0.65,
         max_num: int = 100,
         checkpoint: Optional[Union[str, Path]] = None,
+        weights_only: bool = True,
         **kwargs: Any,
     ) -> None:
         super().__init__()
@@ -53,23 +54,25 @@ class SingleStageDetector(nn.Module):
         self.max_num = max_num
 
         if checkpoint is not None:
-            self.load_checkpoint(checkpoint)
+            self.load_checkpoint(checkpoint, weights_only=weights_only)
 
     def load_checkpoint(
         self,
         checkpoint_path: Union[str, Path],
         map_location: Union[str, torch.device] = "cpu",
         strict: bool = True,
+        weights_only: bool = True,
     ) -> Dict[str, Any]:
         """
         Load weights into the detector from a checkpoint file.
         Supports raw state_dicts and CheckpointEnvelope dictionaries with 'model' key.
+        Defaults to secure restricted unpickling (weights_only=True).
         """
         path = Path(checkpoint_path)
         if not path.is_file():
             raise FileNotFoundError(f"Checkpoint file not found: {checkpoint_path}")
 
-        state = torch.load(path, map_location=map_location, weights_only=False)
+        state = torch.load(path, map_location=map_location, weights_only=weights_only)
         if isinstance(state, dict) and "model" in state:
             state_dict = state["model"]
             meta = state.get("meta", {})
@@ -88,10 +91,12 @@ class SingleStageDetector(nn.Module):
         checkpoint_or_preset: Union[str, Path],
         map_location: Union[str, torch.device] = "cpu",
         strict: bool = True,
+        weights_only: bool = True,
         **kwargs: Any,
     ) -> T:
         """
         Instantiate detector model and load pretrained weights from path or local preset name.
+        Defaults to secure restricted unpickling (weights_only=True).
         """
         path = Path(checkpoint_or_preset)
         if not path.is_file():
@@ -110,7 +115,7 @@ class SingleStageDetector(nn.Module):
                 f"Please provide an existing checkpoint path."
             )
 
-        state = torch.load(path, map_location=map_location, weights_only=False)
+        state = torch.load(path, map_location=map_location, weights_only=weights_only)
         meta = state.get("meta", {}) if isinstance(state, dict) else {}
 
         model_kwargs = dict(kwargs)

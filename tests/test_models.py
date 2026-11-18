@@ -135,14 +135,20 @@ def test_checkpoint_and_from_pretrained_methods(tmp_path) -> None:
         ckpt_path,
     )
 
-    # 1. Constructor checkpoint loading
+    # 1. Constructor checkpoint loading (restricted unpickling by default)
     model_loaded = RTMDet(arch="tiny", num_classes=5, checkpoint=ckpt_path)
     assert isinstance(model_loaded, RTMDet)
 
-    # 2. from_pretrained classmethod
+    # 2. from_pretrained classmethod (restricted unpickling by default)
     model_pretrained = RTMDet.from_pretrained(ckpt_path)
     assert isinstance(model_pretrained, RTMDet)
     assert model_pretrained.num_classes == 5
+
+    # 3. Explicit weights_only opt-in
+    meta = model.load_checkpoint(ckpt_path, weights_only=True)
+    assert meta["arch"] == "tiny"
+    meta_legacy = model.load_checkpoint(ckpt_path, weights_only=False)
+    assert meta_legacy["arch"] == "tiny"
 
     # 3. Missing file raises FileNotFoundError
     with pytest.raises(FileNotFoundError):

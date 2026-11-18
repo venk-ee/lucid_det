@@ -33,6 +33,7 @@ class RTMDet(SingleStageDetector):
         neck: Optional[nn.Module] = None,
         head: Optional[nn.Module] = None,
         checkpoint: Optional[Union[str, Path]] = None,
+        weights_only: bool = True,
         **kwargs: Any,
     ) -> None:
         if backbone is None:
@@ -74,6 +75,7 @@ class RTMDet(SingleStageDetector):
             nms_thresh=nms_thresh,
             max_num=max_num,
             checkpoint=checkpoint,
+            weights_only=weights_only,
             **kwargs,
         )
         self.arch = arch

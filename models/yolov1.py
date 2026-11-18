@@ -36,6 +36,7 @@ class YOLOv1(SingleStageDetector):
         neck: Optional[nn.Module] = None,
         head: Optional[nn.Module] = None,
         checkpoint: Optional[Union[str, Path]] = None,
+        weights_only: bool = True,
         **kwargs: Any,
     ) -> None:
         if S is not None:
@@ -72,6 +73,7 @@ class YOLOv1(SingleStageDetector):
             nms_thresh=nms_thresh,
             max_num=max_num,
             checkpoint=checkpoint,
+            weights_only=weights_only,
             **kwargs,
         )
         self.num_classes = num_classes
