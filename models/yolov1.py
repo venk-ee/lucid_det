@@ -3,7 +3,8 @@ YOLOv1 detector model class.
 Assembles Darknet24 backbone and YOLOv1Head.
 """
 
-from typing import Any, Optional
+from pathlib import Path
+from typing import Any, Optional, Union
 
 import torch.nn as nn
 
@@ -34,6 +35,7 @@ class YOLOv1(SingleStageDetector):
         backbone: Optional[nn.Module] = None,
         neck: Optional[nn.Module] = None,
         head: Optional[nn.Module] = None,
+        checkpoint: Optional[Union[str, Path]] = None,
         **kwargs: Any,
     ) -> None:
         if S is not None:
@@ -69,6 +71,7 @@ class YOLOv1(SingleStageDetector):
             score_thresh=score_thresh,
             nms_thresh=nms_thresh,
             max_num=max_num,
+            checkpoint=checkpoint,
             **kwargs,
         )
         self.num_classes = num_classes

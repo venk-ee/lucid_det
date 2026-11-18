@@ -38,6 +38,12 @@ class DetectionOutput:
     def __contains__(self, k: str) -> bool:
         return hasattr(self, k)
 
+    def __iter__(self):
+        return iter(self.keys())
+
+    def __len__(self) -> int:
+        return len(self.keys())
+
     def get(self, k: str, default: Any = None) -> Any:
         return getattr(self, k, default)
 

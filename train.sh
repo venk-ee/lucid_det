@@ -2,6 +2,7 @@
 set -e
 
 # Setup cuDNN runtime path if present in local venv
+export NO_ALBUMENTATIONS_UPDATE=1
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 for _cudnn in "$SCRIPT_DIR"/.venv/lib/python*/site-packages/nvidia/cudnn/lib; do
     if [ -d "$_cudnn" ]; then

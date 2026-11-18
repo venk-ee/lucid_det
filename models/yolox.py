@@ -3,7 +3,8 @@ YOLOX detector model class.
 Assembles CSPDarknet backbone, YOLOXPAFPN neck, and Decoupled YOLOXHead.
 """
 
-from typing import Any, Optional
+from pathlib import Path
+from typing import Any, Optional, Union
 
 import torch.nn as nn
 
@@ -31,6 +32,7 @@ class YOLOX(SingleStageDetector):
         backbone: Optional[nn.Module] = None,
         neck: Optional[nn.Module] = None,
         head: Optional[nn.Module] = None,
+        checkpoint: Optional[Union[str, Path]] = None,
         **kwargs: Any,
     ) -> None:
         if backbone is None:
@@ -76,6 +78,7 @@ class YOLOX(SingleStageDetector):
             score_thresh=score_thresh,
             nms_thresh=nms_thresh,
             max_num=max_num,
+            checkpoint=checkpoint,
             **kwargs,
         )
         self.arch = arch

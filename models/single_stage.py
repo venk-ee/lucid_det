@@ -5,12 +5,16 @@ and inference multi-class NMS decoding.
 """
 
 from collections.abc import Mapping
-from typing import Any, Optional
+from pathlib import Path
+from typing import Any, Dict, Optional, Type, TypeVar, Union
 
 import torch
 import torch.nn as nn
 
 from core.nms import multiclass_nms_batch
+from core.outputs import DetectionOutput
+
+T = TypeVar("T", bound="SingleStageDetector")
 
 
 class SingleStageDetector(nn.Module):
@@ -37,6 +41,7 @@ class SingleStageDetector(nn.Module):
         score_thresh: float = 0.05,
         nms_thresh: float = 0.65,
         max_num: int = 100,
+        checkpoint: Optional[Union[str, Path]] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__()
@@ -46,6 +51,82 @@ class SingleStageDetector(nn.Module):
         self.score_thresh = score_thresh
         self.nms_thresh = nms_thresh
         self.max_num = max_num
+
+        if checkpoint is not None:
+            self.load_checkpoint(checkpoint)
+
+    def load_checkpoint(
+        self,
+        checkpoint_path: Union[str, Path],
+        map_location: Union[str, torch.device] = "cpu",
+        strict: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Load weights into the detector from a checkpoint file.
+        Supports raw state_dicts and CheckpointEnvelope dictionaries with 'model' key.
+        """
+        path = Path(checkpoint_path)
+        if not path.is_file():
+            raise FileNotFoundError(f"Checkpoint file not found: {checkpoint_path}")
+
+        state = torch.load(path, map_location=map_location, weights_only=False)
+        if isinstance(state, dict) and "model" in state:
+            state_dict = state["model"]
+            meta = state.get("meta", {})
+        elif isinstance(state, dict):
+            state_dict = state
+            meta = {}
+        else:
+            raise TypeError(f"Expected dict or state_dict in checkpoint, got {type(state)}")
+
+        self.load_state_dict(state_dict, strict=strict)
+        return meta
+
+    @classmethod
+    def from_pretrained(
+        cls: Type[T],
+        checkpoint_or_preset: Union[str, Path],
+        map_location: Union[str, torch.device] = "cpu",
+        strict: bool = True,
+        **kwargs: Any,
+    ) -> T:
+        """
+        Instantiate detector model and load pretrained weights from path or local preset name.
+        """
+        path = Path(checkpoint_or_preset)
+        if not path.is_file():
+            possible_paths = [
+                Path("checkpoints") / f"{checkpoint_or_preset}.pth",
+                Path("checkpoints") / str(checkpoint_or_preset),
+            ]
+            for p in possible_paths:
+                if p.is_file():
+                    path = p
+                    break
+
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"Could not find checkpoint '{checkpoint_or_preset}'. "
+                f"Please provide an existing checkpoint path."
+            )
+
+        state = torch.load(path, map_location=map_location, weights_only=False)
+        meta = state.get("meta", {}) if isinstance(state, dict) else {}
+
+        model_kwargs = dict(kwargs)
+        if "arch" not in model_kwargs and "arch" in meta:
+            model_kwargs["arch"] = meta["arch"]
+        if "num_classes" not in model_kwargs and "num_classes" in meta:
+            model_kwargs["num_classes"] = meta["num_classes"]
+        if "split_size" not in model_kwargs and "split_size" in meta:
+            model_kwargs["split_size"] = meta["split_size"]
+        if "num_boxes" not in model_kwargs and "num_boxes" in meta:
+            model_kwargs["num_boxes"] = meta["num_boxes"]
+
+        model = cls(**model_kwargs)
+        state_dict = state["model"] if isinstance(state, dict) and "model" in state else state
+        model.load_state_dict(state_dict, strict=strict)
+        return model
 
     def extract_feat(self, x: torch.Tensor) -> Any:
         """Extract multi-scale features through backbone and neck."""
@@ -104,22 +185,27 @@ class SingleStageDetector(nn.Module):
                 max_num=self.max_num,
             )
 
+            if isinstance(outputs, DetectionOutput):
+                outputs.detections = detections
+                return outputs
+
             if isinstance(outputs, Mapping):
                 result = dict(outputs)
                 result["detections"] = detections
                 return result
-            elif hasattr(outputs, "__setitem__"):
+
+            if hasattr(outputs, "__setitem__"):
                 try:
                     outputs["detections"] = detections
                     return outputs
-                except Exception:
+                except (TypeError, KeyError):
                     pass
 
             if hasattr(outputs, "detections"):
                 try:
                     outputs.detections = detections
                     return outputs
-                except Exception:
+                except (AttributeError, TypeError):
                     pass
 
             return {"detections": detections, "outputs": outputs}

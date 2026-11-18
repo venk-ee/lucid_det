@@ -115,31 +115,31 @@ lucid_det/
 │   │   └── nms.py              # Batched multi-class NMS
 │   │
 │   ├── backbones/              # Swappable feature extractors
-│   │   ├── __init__.py         # BACKBONES registry + build_backbone()
+│   │   ├── __init__.py         # BACKBONE_MAP + build_backbone()
 │   │   ├── common.py           # ConvBN-SiLU, DepthwiseSeparableConv, ChannelAttention
 │   │   ├── darknet24.py        # YOLOv1 Darknet-24
 │   │   ├── cspdarknet.py       # YOLOX CSPDarknet
 │   │   └── cspnext.py          # RTMDet CSPNeXt
 │   │
 │   ├── necks/                  # Multi-scale feature aggregators
-│   │   ├── __init__.py         # NECKS registry + build_neck()
+│   │   ├── __init__.py         # NECK_MAP + build_neck()
 │   │   ├── identity.py         # Pass-through for single-scale detectors
 │   │   ├── pafpn.py            # YOLOX PAFPN
 │   │   └── cspnext_pafpn.py    # CSPNeXt PAFPN
 │   │
 │   ├── heads/                  # Prediction heads
-│   │   ├── __init__.py         # HEADS registry + build_head()
+│   │   ├── __init__.py         # HEAD_MAP + build_head()
 │   │   ├── yolov1_head.py      # FC head for YOLOv1
 │   │   ├── yolox_head.py       # Decoupled Conv head
 │   │   └── sep_bn_head.py      # Shared Conv + SepBN head (RTMDet)
 │   │
 │   ├── assigners/              # Ground-truth to anchor/prior matchers
-│   │   ├── __init__.py         # ASSIGNERS registry + build_assigner()
+│   │   ├── __init__.py         # ASSIGNER_MAP + build_assigner()
 │   │   ├── grid_assigner.py    # YOLOv1 grid matcher
 │   │   └── simota.py           # SimOTA / Dynamic Soft Label Assigner
 │   │
 │   ├── losses/                 # Modular loss functions
-│   │   ├── __init__.py         # CLS & BOX loss registries
+│   │   ├── __init__.py         # CLS_LOSS_MAP & BOX_LOSS_MAP + resolve_*_loss()
 │   │   ├── det_loss.py         # Combined multi-task loss dispatcher
 │   │   ├── qfl_loss.py         # Quality Focal Loss
 │   │   ├── iou_loss.py         # IoU / GIoU / CIoU loss modules
@@ -157,13 +157,13 @@ lucid_det/
 │   │   ├── ema.py              # ModelEMA (Exponential Moving Average)
 │   │   └── lr_scheduler.py     # Linear Warmup + Cosine Annealing
 │   │
-│   ├── models/                 # Assembled detector classes
-│   │   ├── __init__.py
-│   │   ├── detector.py         # SingleStageDetector base class
-│   │   └── zoo.py              # Pre-wired model builders:
-│   │                           # - build_yolov1()
-│   │                           # - build_yolox(scale='s'|'m'|'l')
-│   │                           # - build_rtmdet(scale='tiny'|'s'|'m')
+│   ├── models/                 # Assembled detector classes with pure DI
+│   │   ├── __init__.py         # MODEL_MAP & build_detector() universal factory
+│   │   ├── single_stage.py     # SingleStageDetector base class (.from_pretrained, load_checkpoint)
+│   │   ├── rtmdet.py           # RTMDet detector class with DI
+│   │   ├── yolox.py            # YOLOX detector class with DI
+│   │   ├── yolov1.py           # YOLOv1 detector class with DI
+│   │   └── outputs.py          # DetectionOutput dataclass
 │
 ├── runners/                    # Full training execution runners
 │   ├── __init__.py

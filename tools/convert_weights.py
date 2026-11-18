@@ -25,7 +25,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 
-import models.zoo as zoo
+from models import build_detector
 from weights import (
     CheckpointEnvelope,
     ConversionReport,
@@ -129,16 +129,10 @@ def convert_and_verify_preset(
         report.total_weights_converted = len(clean_sd)
 
         # 3. Model construction and test strict loading
-        builder_fn = getattr(zoo, preset.builder_fn, None)
-        if builder_fn is None:
-            raise AttributeError(
-                f"Model builder function '{preset.builder_fn}' not found in models.zoo"
-            )
-
         if preset.family == "yolov1":
-            model = builder_fn(num_classes=preset.num_classes)
+            model = build_detector(preset.family, num_classes=preset.num_classes)
         else:
-            model = builder_fn(arch=preset.arch, num_classes=preset.num_classes)
+            model = build_detector(preset.family, arch=preset.arch, num_classes=preset.num_classes)
 
         model_sd = model.state_dict()
         missing = [k for k in model_sd if k not in clean_sd]

@@ -91,7 +91,7 @@ class SepBNHead(nn.Module):
         self.rtm_reg = nn.ModuleList()
         self.rtm_obj: Optional[nn.ModuleList] = nn.ModuleList() if with_objectness else None
 
-        for lvl, stride in enumerate(self.strides):
+        for lvl, _ in enumerate(self.strides):
             cls_branch, reg_branch = nn.ModuleList(), nn.ModuleList()
             for i in range(stacked_convs):
                 cin = self.in_channels[lvl] if i == 0 else feat_channels

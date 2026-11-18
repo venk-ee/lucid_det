@@ -173,3 +173,32 @@ def test_yolov1_loss_forward() -> None:
     assert "loss_coord" in loss_dict and "loss_obj" in loss_dict and "loss_class" in loss_dict
     total_loss.backward()
     assert pred.grad is not None
+
+
+def test_det_loss_zero_ground_truth() -> None:
+    B, A, C = 2, 50, 5
+    pred_cls = torch.randn(B, A, C, requires_grad=True)
+    pred_boxes = torch.randn(B, A, 4, requires_grad=True)
+    centers = torch.randn(A, 2)
+    strides = torch.ones(A, 1)
+
+    model_out = {
+        "pred_cls": pred_cls,
+        "pred_boxes": pred_boxes,
+        "anchor_centers": centers,
+        "anchor_strides": strides,
+    }
+
+    gt_boxes = [torch.empty(0, 4), torch.empty(0, 4)]
+    gt_labels = [torch.empty(0, dtype=torch.long), torch.empty(0, dtype=torch.long)]
+
+    total_loss, loss_dict = det_loss(
+        model_out=model_out,
+        gt_boxes_list=gt_boxes,
+        gt_labels_list=gt_labels,
+    )
+    assert torch.isfinite(total_loss)
+    assert loss_dict["loss_box"].item() == 0.0
+    total_loss.backward()
+    assert pred_cls.grad is not None
+    assert pred_boxes.grad is not None

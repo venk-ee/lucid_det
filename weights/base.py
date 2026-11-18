@@ -17,7 +17,7 @@ class ModelWeightPreset:
         name: Unique preset identifier (e.g. 'rtmdet_s', 'yolox_s').
         family: Model family name ('rtmdet', 'yolox', 'yolov1').
         arch: Architecture variant/scale ('tiny', 's', 'm', 'l', 'x', 'darknet24').
-        builder_fn: Factory builder function name in models.zoo.
+        builder_fn: Factory builder function name or model identifier.
         num_classes: Number of detection classes (default: 80 for COCO, 20 for VOC).
         url: Official remote download URL for pretrained weights.
         cache_hints: Local filesystem paths to check before downloading.
