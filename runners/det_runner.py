@@ -113,7 +113,7 @@ def train_one_epoch(
             raise TypeError(f"Unsupported batch type: {type(batch)}")
 
         with torch.amp.autocast(device_type=device.type, dtype=amp_dtype, enabled=effective_amp):
-            outputs = model(images, training_override=True)
+            outputs = model(images)
             loss, loss_dict = loss_fn(outputs, batch_targets)
 
         if not torch.isfinite(loss):
@@ -186,7 +186,7 @@ def val_one_epoch(
             else:
                 continue
 
-            outputs = model(images, training_override=False)
+            outputs = model(images)
             batch_dets = None
             if isinstance(outputs, dict) and "detections" in outputs:
                 batch_dets = outputs["detections"]
