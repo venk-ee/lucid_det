@@ -202,3 +202,78 @@ def test_det_loss_zero_ground_truth() -> None:
     total_loss.backward()
     assert pred_cls.grad is not None
     assert pred_boxes.grad is not None
+
+
+def test_det_loss_assigner_injection() -> None:
+    """Test injecting a custom mock assigner into det_loss."""
+    batch_size = 2
+    num_anchors = 100
+    num_classes = 80
+
+    pred_cls = torch.randn(batch_size, num_anchors, num_classes, requires_grad=True)
+    pred_x1y1 = torch.rand(batch_size, num_anchors, 2) * 500.0
+    pred_wh = torch.rand(batch_size, num_anchors, 2) * 100.0 + 1.0
+    pred_boxes = torch.cat([pred_x1y1, pred_x1y1 + pred_wh], dim=-1).requires_grad_(True)
+    centers = torch.rand(num_anchors, 2) * 640.0
+    strides = torch.full((num_anchors, 1), 8.0)
+
+    model_out = {
+        "pred_cls": pred_cls,
+        "pred_boxes": pred_boxes,
+        "anchor_centers": centers,
+        "anchor_strides": strides,
+    }
+
+    gt_boxes = [
+        torch.tensor([[50.0, 50.0, 150.0, 150.0]]),
+        torch.tensor([[100.0, 100.0, 200.0, 200.0], [300.0, 300.0, 400.0, 400.0]]),
+    ]
+    gt_labels = [
+        torch.tensor([0]),
+        torch.tensor([1, 2]),
+    ]
+
+    # Track calls to verify the mock assigner is invoked
+    call_count = 0
+
+    def mock_assigner(
+        pred_cls_logits: torch.Tensor,
+        pred_boxes: torch.Tensor,
+        centers: torch.Tensor,
+        strides: torch.Tensor,
+        gt_boxes: torch.Tensor,
+        gt_labels: torch.Tensor,
+        num_classes: int,
+        **kwargs,
+    ):
+        nonlocal call_count
+        call_count += 1
+
+        A = pred_cls_logits.shape[0]
+        labels = torch.full((A,), num_classes, dtype=torch.long, device=pred_cls_logits.device)
+        label_weights = torch.ones(A, device=pred_cls_logits.device)
+        bbox_targets = torch.zeros((A, 4), device=pred_cls_logits.device)
+        assign_metrics = torch.zeros(A, device=pred_cls_logits.device)
+
+        # Assign the first anchor to the first ground-truth box
+        if gt_boxes.numel() > 0:
+            labels[0] = gt_labels[0]
+            bbox_targets[0] = gt_boxes[0]
+            assign_metrics[0] = 0.8
+
+        return labels, label_weights, bbox_targets, assign_metrics
+
+    total_loss, loss_dict = det_loss(
+        model_out=model_out,
+        gt_boxes_list=gt_boxes,
+        gt_labels_list=gt_labels,
+        assigner=mock_assigner,
+    )
+
+    # Verify the mock was called once per batch item
+    assert call_count == batch_size
+    assert torch.isfinite(total_loss)
+    assert "loss_cls" in loss_dict and "loss_box" in loss_dict
+    total_loss.backward()
+    assert pred_cls.grad is not None
+    assert pred_boxes.grad is not None

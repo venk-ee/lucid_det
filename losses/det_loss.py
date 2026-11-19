@@ -90,6 +90,7 @@ def det_loss(
     box_loss: Union[str, Type[nn.Module], nn.Module, Callable] = "giou",
     box_weight: float = 3.5,
     l1_weight: float = 0.25,
+    assigner: Optional[Callable] = None,
 ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
     """
     Compute multi-task detection loss for anchor-free detectors.
@@ -106,6 +107,8 @@ def det_loss(
         box_loss: Box regression loss instance, class, callable, or name (default: 'giou').
         box_weight: Multiplier weight for bounding box loss.
         l1_weight: Multiplier weight for auxiliary smooth L1 box loss.
+        assigner: Optional callable assigner following the universal assigner protocol.
+            If None, falls back to dynamic_soft_label_assign.
 
     Returns:
         total_loss: Scalar loss tensor with attached computational graph.
@@ -113,6 +116,7 @@ def det_loss(
     """
     cls_loss_fn = resolve_cls_loss(cls_loss)
     box_loss_fn = resolve_box_loss(box_loss)
+    _assigner = assigner if assigner is not None else dynamic_soft_label_assign
 
     pred_cls = model_out["pred_cls"]
     pred_boxes = model_out["pred_boxes"]
@@ -133,7 +137,7 @@ def det_loss(
         gb = gt_boxes_list[b].to(device)
         gl = gt_labels_list[b].to(device)
 
-        labels, label_weights, bbox_targets, assign_metrics = dynamic_soft_label_assign(
+        labels, label_weights, bbox_targets, assign_metrics = _assigner(
             pred_cls_logits=pred_cls[b].detach().float(),
             pred_boxes=pred_boxes[b].detach().float(),
             centers=centers.float(),
