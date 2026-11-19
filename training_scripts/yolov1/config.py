@@ -4,9 +4,17 @@ Structured following clean configuration patterns.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, Tuple
+from typing import Tuple
 
-import torch
+from training_scripts.base_config import (
+    DataConfig as BaseDataConfig,
+)
+from training_scripts.base_config import (
+    EvalConfig,
+)
+from training_scripts.base_config import (
+    OptimConfig as BaseOptimConfig,
+)
 
 
 @dataclass
@@ -22,46 +30,25 @@ class ModelConfig:
 
 
 @dataclass
-class DataConfig:
-    """Dataset and dataloader configuration."""
+class DataConfig(BaseDataConfig):
+    """YOLOv1 VOC dataset configuration."""
 
-    data_root: str = "data"
     train_ann: str = "annotations/voc07_train.json"
     val_ann: str = "annotations/voc07_val.json"
     train_img: str = "images"
     val_img: str = "images"
     num_classes: int = 20
     img_size: Tuple[int, int] = (448, 448)
-    batch_size: int = 16
-    val_batch_size: Optional[int] = None
-    num_workers: int = 4
-    pin_memory: bool = True
-    persistent_workers: bool = True
 
 
 @dataclass
-class OptimConfig:
-    """Optimization hyperparameters."""
+class OptimConfig(BaseOptimConfig):
+    """YOLOv1-specific optimization hyperparameters."""
 
     epochs: int = 135
     lr: float = 2e-5
     weight_decay: float = 5e-4
-    clip_max_norm: float = 35.0
-    use_amp: bool = True
-    device: str = "cuda" if torch.cuda.is_available() else "cpu"
     warmup_epochs: int = 5
-    cooldown_epochs: int = 0
-    min_lr_ratio: float = 0.05
-    ema_decay: float = 0.9998
-    resume: Optional[str] = None
-
-
-@dataclass
-class EvalConfig:
-    """Evaluation cadence and metric parameters."""
-
-    eval_interval: int = 1
-    compute_map: bool = True
 
 
 @dataclass
