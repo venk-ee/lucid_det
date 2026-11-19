@@ -2,7 +2,7 @@
 Non-Maximum Suppression (NMS) utilities.
 """
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import torch
 from torchvision.ops import batched_nms
@@ -14,16 +14,20 @@ def multiclass_nms(
     score_thresh: float = 0.05,
     nms_thresh: float = 0.65,
     max_num: int = 100,
+    from_logits: Optional[bool] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Perform multi-class Non-Maximum Suppression on a single image's predictions.
 
     Args:
         boxes: Tensor of shape (N, 4) in (x1, y1, x2, y2) format.
-        scores: Tensor of shape (N, num_classes) with class probabilities or logits (sigmoid will be applied if max > 1).
+        scores: Tensor of shape (N, num_classes) with class probabilities or logits.
         score_thresh: Minimum score threshold to retain a detection.
         nms_thresh: IoU threshold for NMS.
         max_num: Maximum number of detections to keep per image.
+        from_logits: Whether input scores are unnormalized logits. If True, applies sigmoid.
+            If False, assumes scores are probabilities in [0, 1]. If None (default),
+            applies sigmoid only if values fall outside [0, 1].
 
     Returns:
         det_boxes: Tensor of shape (K, 4)
@@ -36,9 +40,12 @@ def multiclass_nms(
         empty_labels = torch.empty((0,), device=scores.device, dtype=torch.long)
         return empty_boxes, empty_scores, empty_labels
 
-    # If scores are raw logits, apply sigmoid
-    if scores.max() > 1.0 or scores.min() < 0.0:
+    # Normalize scores: deterministic when from_logits is set, fallback to range heuristic
+    if from_logits is True:
         scores = scores.sigmoid()
+    elif from_logits is None:
+        if scores.max() > 1.0 or scores.min() < 0.0:
+            scores = scores.sigmoid()
 
     # Best class score and label per candidate box
     max_scores, max_labels = torch.max(scores, dim=-1)
@@ -68,6 +75,7 @@ def multiclass_nms_batch(
     score_thresh: float = 0.05,
     nms_thresh: float = 0.65,
     max_num: int = 100,
+    from_logits: Optional[bool] = None,
 ) -> List[Dict[str, torch.Tensor]]:
     """
     Perform multi-class NMS across a batch of images.
@@ -78,6 +86,7 @@ def multiclass_nms_batch(
         score_thresh: Score threshold.
         nms_thresh: IoU suppression threshold.
         max_num: Max boxes to retain per image.
+        from_logits: Whether input scores are unnormalized logits.
 
     Returns:
         List of length B, where each element is a dict with keys:
@@ -95,6 +104,7 @@ def multiclass_nms_batch(
             score_thresh=score_thresh,
             nms_thresh=nms_thresh,
             max_num=max_num,
+            from_logits=from_logits,
         )
         results.append(
             {

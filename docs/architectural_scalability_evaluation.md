@@ -66,8 +66,8 @@ This contract is task-agnostic. Any model that returns outputs consumable by a l
 ```python
 @dataclass
 class DetectionOutput:
-    pred_cls: torch.Tensor        # (B, A, num_classes)
-    pred_boxes: torch.Tensor      # (B, A, 4) -- hardcoded to xyxy
+    pred_cls: torch.Tensor  # (B, A, num_classes)
+    pred_boxes: torch.Tensor  # (B, A, 4) -- hardcoded to xyxy
     anchor_centers: torch.Tensor  # (A, 2)
     anchor_strides: torch.Tensor  # (A, 1)
     detections: Optional[...] = None
@@ -91,13 +91,13 @@ class DetectionOutput:
 @dataclass
 class DetectionOutput:
     pred_cls: torch.Tensor
-    pred_boxes: torch.Tensor          # (B, A, D) where D in {4, 5} for bbox/rotated
+    pred_boxes: torch.Tensor  # (B, A, D) where D in {4, 5} for bbox/rotated
     anchor_centers: torch.Tensor
     anchor_strides: torch.Tensor
     detections: Optional[...] = None
     # Optional extensions:
-    pred_masks: Optional[torch.Tensor] = None     # (B, A, M) or (B, A, H, W)
-    pred_keypoints: Optional[torch.Tensor] = None # (B, A, K, 3)
+    pred_masks: Optional[torch.Tensor] = None  # (B, A, M) or (B, A, H, W)
+    pred_keypoints: Optional[torch.Tensor] = None  # (B, A, K, 3)
 ```
 
 This keeps the dataclass simple and backward-compatible. The `__getitem__`/`__setitem__`/`get()` methods already support dynamic field access.
@@ -243,6 +243,7 @@ class RotatedDetDataset(DetDataset):
     def get_raw_sample(self, index):
         # Returns (img, bboxes_xywha, labels, img_id, ori_shape)
         ...
+
 
 class SegmDataset(DetDataset):
     def get_raw_sample(self, index):

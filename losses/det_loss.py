@@ -15,9 +15,19 @@ from assigners.simota import dynamic_soft_label_assign
 from losses.iou_loss import CIoULoss, GIoULoss, IoULoss
 from losses.qfl import QualityFocalLoss
 
+
+class BCEWithLogitsLoss(nn.Module):
+    """Binary Cross Entropy with logits loss supporting soft matrix targets."""
+
+    def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        return F.binary_cross_entropy_with_logits(pred, target, reduction="none")
+
+
 CLS_LOSS_MAP: Dict[str, Type[nn.Module]] = {
     "qfl": QualityFocalLoss,
     "quality_focal_loss": QualityFocalLoss,
+    "bce": BCEWithLogitsLoss,
+    "bce_loss": BCEWithLogitsLoss,
 }
 
 BOX_LOSS_MAP: Dict[str, Type[nn.Module]] = {
@@ -28,10 +38,6 @@ BOX_LOSS_MAP: Dict[str, Type[nn.Module]] = {
     "iou": IoULoss,
     "iou_loss": IoULoss,
 }
-
-
-_DEFAULT_CLS_INSTANCES: Dict[str, Callable] = {}
-_DEFAULT_BOX_INSTANCES: Dict[str, Callable] = {}
 
 
 def resolve_cls_loss(
@@ -46,9 +52,7 @@ def resolve_cls_loss(
             raise ValueError(
                 f"Unknown classification loss '{cls_loss}'. Available: {sorted(CLS_LOSS_MAP.keys())}"
             )
-        if key not in _DEFAULT_CLS_INSTANCES:
-            _DEFAULT_CLS_INSTANCES[key] = CLS_LOSS_MAP[key]()
-        return _DEFAULT_CLS_INSTANCES[key]
+        return CLS_LOSS_MAP[key]()
     if isinstance(cls_loss, type) and issubclass(cls_loss, nn.Module):
         return cls_loss()
     if callable(cls_loss):
@@ -70,9 +74,7 @@ def resolve_box_loss(
             raise ValueError(
                 f"Unknown box loss '{box_loss}'. Available: {sorted(BOX_LOSS_MAP.keys())}"
             )
-        if key not in _DEFAULT_BOX_INSTANCES:
-            _DEFAULT_BOX_INSTANCES[key] = BOX_LOSS_MAP[key]()
-        return _DEFAULT_BOX_INSTANCES[key]
+        return BOX_LOSS_MAP[key]()
     if isinstance(box_loss, type) and issubclass(box_loss, nn.Module):
         return box_loss()
     if callable(box_loss):

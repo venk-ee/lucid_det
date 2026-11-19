@@ -6,6 +6,7 @@ Direct imports of pure PyTorch loss modules and utilities.
 from losses.det_loss import (
     BOX_LOSS_MAP,
     CLS_LOSS_MAP,
+    BCEWithLogitsLoss,
     det_loss,
     resolve_assigner,
     resolve_box_loss,
@@ -17,6 +18,7 @@ from losses.yolov1_loss import YOLOv1Loss, encode_yolov1_targets
 
 __all__ = [
     "QualityFocalLoss",
+    "BCEWithLogitsLoss",
     "GIoULoss",
     "CIoULoss",
     "IoULoss",

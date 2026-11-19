@@ -71,7 +71,6 @@ class YOLOv1Head(nn.Module):
 
         boxes_list: List[torch.Tensor] = []
         cls_list: List[torch.Tensor] = []
-        centers_list: List[torch.Tensor] = []
 
         ys, xs = torch.meshgrid(
             torch.arange(self.S, device=device),
@@ -105,11 +104,18 @@ class YOLOv1Head(nn.Module):
 
             boxes_list.append(xyxy)
             cls_list.append(combined_logits)
-            centers_list.append(torch.stack([bx.view(-1), by.view(-1)], dim=-1))
+
+        # Static anchor centers per prior box (independent of batch size)
+        # Prior centers for each cell are at (col + 0.5) * cell_size, (row + 0.5) * cell_size
+        cell_centers_x = (xs.float() + 0.5) * cell_size
+        cell_centers_y = (ys.float() + 0.5) * cell_size
+        single_box_centers = torch.stack(
+            [cell_centers_x.reshape(-1), cell_centers_y.reshape(-1)], dim=-1
+        )
+        anchor_centers = single_box_centers.repeat(self.B, 1)
 
         pred_boxes = torch.cat(boxes_list, dim=1)
         pred_cls = torch.cat(cls_list, dim=1)
-        anchor_centers = torch.cat(centers_list, dim=0)
         anchor_strides = torch.full(
             (pred_boxes.shape[1], 1), cell_size, device=device, dtype=torch.float32
         )

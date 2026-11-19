@@ -175,6 +175,7 @@ class SingleStageDetector(nn.Module):
                 score_thresh=self.score_thresh,
                 nms_thresh=self.nms_thresh,
                 max_num=self.max_num,
+                from_logits=True,
             )
 
             if isinstance(outputs, DetectionOutput):

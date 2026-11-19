@@ -8,6 +8,7 @@ import torch
 from losses import (
     BOX_LOSS_MAP,
     CLS_LOSS_MAP,
+    BCEWithLogitsLoss,
     CIoULoss,
     GIoULoss,
     IoULoss,
@@ -299,3 +300,32 @@ def test_det_loss_assigner_injection() -> None:
     total_loss.backward()
     assert pred_cls.grad is not None
     assert pred_boxes.grad is not None
+
+
+def test_bce_with_logits_loss() -> None:
+    loss_fn = BCEWithLogitsLoss()
+    pred = torch.randn(4, 10, requires_grad=True)
+    target = torch.rand(4, 10)  # Continuous soft targets
+    loss = loss_fn(pred, target)
+    assert loss.shape == pred.shape
+    assert torch.isfinite(loss).all()
+    loss.sum().backward()
+    assert pred.grad is not None
+
+
+def test_resolve_loss_fresh_instances() -> None:
+    # Verify resolve_cls_loss and resolve_box_loss return fresh unshared instances
+    cls1 = resolve_cls_loss("qfl")
+    cls2 = resolve_cls_loss("qfl")
+    assert cls1 is not cls2
+    assert isinstance(cls1, QualityFocalLoss)
+
+    box1 = resolve_box_loss("giou")
+    box2 = resolve_box_loss("giou")
+    assert box1 is not box2
+    assert isinstance(box1, GIoULoss)
+
+    bce1 = resolve_cls_loss("bce")
+    bce2 = resolve_cls_loss("bce_loss")
+    assert bce1 is not bce2
+    assert isinstance(bce1, BCEWithLogitsLoss)

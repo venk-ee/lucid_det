@@ -4,6 +4,7 @@ Decouples classification, bounding box regression, and objectness branches.
 Returns standard DetectionOutput contract.
 """
 
+import math
 from typing import Sequence, Tuple, Union
 
 import torch
@@ -75,8 +76,6 @@ class YOLOXHead(nn.Module):
         self._init_weights()
 
     def _init_weights(self) -> None:
-        import math
-
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.normal_(m.weight, 0, 0.01)

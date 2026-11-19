@@ -187,3 +187,31 @@ def test_checkpoint_and_from_pretrained_methods(tmp_path) -> None:
     # 3. Missing file raises FileNotFoundError
     with pytest.raises(FileNotFoundError):
         RTMDet.from_pretrained(tmp_path / "non_existent.pth")
+
+
+def test_multiclass_nms_from_logits() -> None:
+    from core.nms import multiclass_nms, multiclass_nms_batch
+
+    boxes = torch.tensor([[10.0, 10.0, 50.0, 50.0], [20.0, 20.0, 60.0, 60.0]])
+    # Logits where values fall inside [0, 1] - heuristic would fail, but from_logits=True works deterministically
+    logits = torch.tensor([[0.5, 0.2], [0.1, 0.4]])
+
+    det_boxes, det_scores, det_labels = multiclass_nms(
+        boxes, logits, score_thresh=0.01, from_logits=True
+    )
+    expected_scores = logits.sigmoid().max(dim=-1)[0]
+    assert torch.allclose(det_scores[0], expected_scores[0], atol=1e-5)
+
+    # With from_logits=False, values are preserved without sigmoid
+    probs = torch.tensor([[0.7, 0.2], [0.1, 0.8]])
+    det_boxes_p, det_scores_p, det_labels_p = multiclass_nms(
+        boxes, probs, score_thresh=0.01, from_logits=False
+    )
+    assert torch.allclose(det_scores_p[0], torch.tensor(0.8), atol=1e-5)
+
+    # Batch version with from_logits=True
+    batch_boxes = boxes.unsqueeze(0)
+    batch_logits = logits.unsqueeze(0)
+    batch_res = multiclass_nms_batch(batch_boxes, batch_logits, score_thresh=0.01, from_logits=True)
+    assert len(batch_res) == 1
+    assert "boxes" in batch_res[0] and "scores" in batch_res[0]
