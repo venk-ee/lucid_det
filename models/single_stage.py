@@ -49,6 +49,8 @@ class SingleStageDetector(nn.Module):
         self.backbone = backbone
         self.neck = neck
         self.head = head
+        self.strides = getattr(neck, "strides", getattr(backbone, "strides", (8, 16, 32)))
+        self.export_mode: bool = False
         self.score_thresh = score_thresh
         self.nms_thresh = nms_thresh
         self.max_num = max_num
@@ -140,37 +142,18 @@ class SingleStageDetector(nn.Module):
             feats = self.neck(feats)
         return feats
 
-    def forward(
-        self,
-        x: torch.Tensor,
-        training_override: Optional[bool] = None,
-    ) -> Any:
+    def postprocess(self, outputs: Any, x: torch.Tensor) -> Any:
         """
-        Forward pass of the detector.
+        Post-process raw head outputs with NMS to produce detections.
 
         Args:
-            x: Input batch tensor of shape (B, C, H, W).
-            training_override: Explicitly force training or inference mode when provided.
+            outputs: Raw head outputs containing pred_cls and pred_boxes.
+            x: Input batch tensor (used for potential image-size metadata).
 
         Returns:
-            In training mode:
-                Raw head outputs (e.g. dict, tuple, or dataclass of cls scores, bbox preds).
-            In inference mode:
-                If head outputs expose 'pred_cls' and 'pred_boxes' (dict or dataclass),
-                attaches or includes 'detections' (list of dicts per image) and returns results.
-                Otherwise returns raw head outputs.
+            Outputs augmented with a 'detections' field, or the original outputs
+            if pred_cls/pred_boxes are not available.
         """
-        feats = self.extract_feat(x)
-        if self.head is None:
-            return feats
-
-        outputs = self.head(feats)
-
-        is_train = self.training if training_override is None else training_override
-        if is_train:
-            return outputs
-
-        # Inference post-processing: extract pred_cls and pred_boxes from dict or dataclass
         pred_cls = None
         pred_boxes = None
 
@@ -216,3 +199,72 @@ class SingleStageDetector(nn.Module):
             return {"detections": detections, "outputs": outputs}
 
         return outputs
+
+    def forward_export(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Forward pass for ONNX/TensorRT export.
+
+        Returns raw bounding-box predictions and sigmoid-activated class scores
+        without any NMS or post-processing.
+
+        Args:
+            x: Input batch tensor of shape (B, C, H, W).
+
+        Returns:
+            Tuple of (pred_boxes, pred_cls.sigmoid()).
+        """
+        feats = self.extract_feat(x)
+        if self.head is None:
+            raise RuntimeError("forward_export requires a head module.")
+
+        outputs = self.head(feats)
+
+        if isinstance(outputs, Mapping):
+            pred_boxes = outputs["pred_boxes"]
+            pred_cls = outputs["pred_cls"]
+        elif hasattr(outputs, "pred_cls") and hasattr(outputs, "pred_boxes"):
+            pred_boxes = getattr(outputs, "pred_boxes")
+            pred_cls = getattr(outputs, "pred_cls")
+        else:
+            raise RuntimeError(
+                "forward_export requires head outputs with pred_cls and pred_boxes."
+            )
+
+        return pred_boxes, pred_cls.sigmoid()
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        training_override: Optional[bool] = None,
+    ) -> Any:
+        """
+        Forward pass of the detector.
+
+        Args:
+            x: Input batch tensor of shape (B, C, H, W).
+            training_override: Explicitly force training or inference mode when provided.
+
+        Returns:
+            In export mode:
+                Tuple of (pred_boxes, pred_cls.sigmoid()) for ONNX/TensorRT export.
+            In training mode:
+                Raw head outputs (e.g. dict, tuple, or dataclass of cls scores, bbox preds).
+            In inference mode:
+                If head outputs expose 'pred_cls' and 'pred_boxes' (dict or dataclass),
+                attaches or includes 'detections' (list of dicts per image) and returns results.
+                Otherwise returns raw head outputs.
+        """
+        if self.export_mode:
+            return self.forward_export(x)
+
+        feats = self.extract_feat(x)
+        if self.head is None:
+            return feats
+
+        outputs = self.head(feats)
+
+        is_train = self.training if training_override is None else training_override
+        if is_train:
+            return outputs
+
+        return self.postprocess(outputs, x)

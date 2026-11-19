@@ -127,6 +127,40 @@ def test_detector_direct_dependency_injection() -> None:
     assert model_v1.head is head_v1
 
 
+def test_detector_export_mode_and_postprocess() -> None:
+    model = RTMDet(arch="tiny", num_classes=4)
+
+    # Verify strides attribute exists
+    assert hasattr(model, "strides")
+    assert isinstance(model.strides, (tuple, list))
+
+    # Verify export_mode defaults to False
+    assert model.export_mode is False
+
+    x = torch.randn(1, 3, 320, 320)
+
+    # Test export_mode=True returns a 2-tuple of tensors
+    model.eval()
+    model.export_mode = True
+    with torch.no_grad():
+        result = model(x)
+    assert isinstance(result, tuple)
+    assert len(result) == 2
+    pred_boxes, pred_cls = result
+    assert isinstance(pred_boxes, torch.Tensor)
+    assert isinstance(pred_cls, torch.Tensor)
+    # Sigmoid output should be in [0, 1]
+    assert (pred_cls >= 0).all() and (pred_cls <= 1).all()
+
+    # Test postprocess() works independently
+    model.export_mode = False
+    with torch.no_grad():
+        feats = model.extract_feat(x)
+        raw_outputs = model.head(feats)
+        processed = model.postprocess(raw_outputs, x)
+    assert hasattr(processed, "detections") or "detections" in processed
+
+
 def test_checkpoint_and_from_pretrained_methods(tmp_path) -> None:
     model = RTMDet(arch="tiny", num_classes=5)
     ckpt_path = tmp_path / "model.pth"
