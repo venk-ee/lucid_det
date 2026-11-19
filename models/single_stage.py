@@ -226,9 +226,7 @@ class SingleStageDetector(nn.Module):
             pred_boxes = getattr(outputs, "pred_boxes")
             pred_cls = getattr(outputs, "pred_cls")
         else:
-            raise RuntimeError(
-                "forward_export requires head outputs with pred_cls and pred_boxes."
-            )
+            raise RuntimeError("forward_export requires head outputs with pred_cls and pred_boxes.")
 
         return pred_boxes, pred_cls.sigmoid()
 
