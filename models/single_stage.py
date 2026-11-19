@@ -6,7 +6,7 @@ and inference multi-class NMS decoding.
 
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Dict, Optional, Type, TypeVar, Union
+from typing import Any, Dict, Optional, Sequence, Type, TypeVar, Union
 
 import torch
 import torch.nn as nn
@@ -43,13 +43,17 @@ class SingleStageDetector(nn.Module):
         max_num: int = 100,
         checkpoint: Optional[Union[str, Path]] = None,
         weights_only: bool = True,
+        strides: Optional[Sequence[int]] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__()
         self.backbone = backbone
         self.neck = neck
         self.head = head
-        self.strides = getattr(neck, "strides", getattr(backbone, "strides", (8, 16, 32)))
+        if strides is not None:
+            self.strides = tuple(strides)
+        else:
+            self.strides = getattr(neck, "strides", getattr(backbone, "strides", (8, 16, 32)))
         self.export_mode: bool = False
         self.score_thresh = score_thresh
         self.nms_thresh = nms_thresh

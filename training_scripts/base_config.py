@@ -3,7 +3,7 @@ Central base configurations shared across model training scripts.
 Standard dataclasses for data, optimization, and evaluation settings.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Tuple
 
 import torch
@@ -50,3 +50,15 @@ class EvalConfig:
 
     eval_interval: int = 1
     compute_map: bool = True
+
+
+@dataclass
+class BaseTrainConfig:
+    """Unified base training configuration establishing single source of truth."""
+
+    exp_name: str = "detector"
+    work_dir: str = "work_dirs/detector"
+    seed: int = 42
+    data: DataConfig = field(default_factory=DataConfig)
+    optim: OptimConfig = field(default_factory=OptimConfig)
+    eval: EvalConfig = field(default_factory=EvalConfig)

@@ -7,6 +7,7 @@ from losses.det_loss import (
     BOX_LOSS_MAP,
     CLS_LOSS_MAP,
     det_loss,
+    resolve_assigner,
     resolve_box_loss,
     resolve_cls_loss,
 )
@@ -24,6 +25,7 @@ __all__ = [
     "det_loss",
     "resolve_cls_loss",
     "resolve_box_loss",
+    "resolve_assigner",
     "CLS_LOSS_MAP",
     "BOX_LOSS_MAP",
 ]

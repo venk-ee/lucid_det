@@ -82,6 +82,21 @@ def resolve_box_loss(
     )
 
 
+def resolve_assigner(
+    assigner: Optional[Union[str, Callable]] = None,
+) -> Callable:
+    """Resolve target assigner into a callable function or module."""
+    if assigner is None:
+        return dynamic_soft_label_assign
+    if isinstance(assigner, str):
+        from assigners import build_assigner
+
+        return build_assigner(assigner)
+    if callable(assigner):
+        return assigner
+    raise TypeError(f"Invalid assigner: expected str, Callable, or None, got {type(assigner)}")
+
+
 def det_loss(
     model_out: Any,
     gt_boxes_list: Sequence[torch.Tensor],
@@ -116,7 +131,7 @@ def det_loss(
     """
     cls_loss_fn = resolve_cls_loss(cls_loss)
     box_loss_fn = resolve_box_loss(box_loss)
-    _assigner = assigner if assigner is not None else dynamic_soft_label_assign
+    _assigner = resolve_assigner(assigner)
 
     pred_cls = model_out["pred_cls"]
     pred_boxes = model_out["pred_boxes"]

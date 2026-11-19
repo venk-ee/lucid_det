@@ -55,12 +55,17 @@ def generic_train(
     loss_fn: Callable,
     family_tag: str = "detector",
     optimizer: Optional[torch.optim.Optimizer] = None,
+    train_loader: Optional[DataLoader] = None,
+    val_loader: Optional[DataLoader] = None,
+    evaluator: Optional[Any] = None,
+    cooldown_loader: Optional[DataLoader] = None,
 ) -> None:
     """Coordinate the full training lifecycle for a detection model.
 
     Handles seeding, dataset and DataLoader construction, optimizer fallback,
     LR scheduler, EMA, GradScaler, checkpoint resume, cooldown transition,
     epoch loop with training and validation, and checkpoint saving.
+    Supports direct dependency injection of train_loader, val_loader, and evaluator.
 
     Args:
         cfg: Training configuration object with nested data, optim, eval, and model attrs.
@@ -68,6 +73,10 @@ def generic_train(
         loss_fn: Callable(outputs, targets) -> (total_loss, loss_dict).
         family_tag: Short identifier stored in checkpoints (e.g. 'rtmdet').
         optimizer: Pre-built optimizer; if None, built via build_optimizer using cfg.optim.
+        train_loader: Optional pre-built DataLoader for training.
+        val_loader: Optional pre-built DataLoader for validation.
+        evaluator: Optional metric evaluator (e.g. COCOEvaluator).
+        cooldown_loader: Optional pre-built DataLoader for augmentation cooldown epochs.
     """
     # -- Seeding --
     seed = getattr(cfg, "seed", 42)
@@ -81,44 +90,31 @@ def generic_train(
     os.makedirs(work_dir, exist_ok=True)
     device = torch.device(cfg.optim.device)
 
-    # -- Dataset & DataLoaders --
-    train_root = (
-        os.path.join(cfg.data.data_root, cfg.data.train_img)
-        if not os.path.isabs(cfg.data.train_img) and not os.path.exists(cfg.data.train_img)
-        else cfg.data.train_img
-    )
-    train_ann = (
-        os.path.join(cfg.data.data_root, cfg.data.train_ann)
-        if not os.path.isabs(cfg.data.train_ann) and not os.path.exists(cfg.data.train_ann)
-        else cfg.data.train_ann
-    )
-
-    train_transform = build_det_transform(img_size=cfg.data.img_size, is_train=True)
-    val_transform = build_det_transform(img_size=cfg.data.img_size, is_train=False)
-
-    train_dataset = DetDataset(
-        root=train_root,
-        ann_file=train_ann,
-        transform=train_transform,
-        num_classes=cfg.data.num_classes,
-    )
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=cfg.data.batch_size,
-        shuffle=True,
-        num_workers=cfg.data.num_workers,
-        collate_fn=det_collate,
-        pin_memory=device.type == "cuda" and cfg.data.pin_memory,
-        drop_last=False,
-    )
-
-    cooldown_loader: Optional[DataLoader] = None
+    # -- Dataset & DataLoaders fallback --
     cooldown_epochs = getattr(cfg.optim, "cooldown_epochs", 0)
-    if cooldown_epochs > 0:
-        cooldown_ds = copy.copy(train_dataset)
-        cooldown_ds.transform = val_transform
-        cooldown_loader = DataLoader(
-            cooldown_ds,
+    if train_loader is None:
+        train_root = (
+            os.path.join(cfg.data.data_root, cfg.data.train_img)
+            if not os.path.isabs(cfg.data.train_img) and not os.path.exists(cfg.data.train_img)
+            else cfg.data.train_img
+        )
+        train_ann = (
+            os.path.join(cfg.data.data_root, cfg.data.train_ann)
+            if not os.path.isabs(cfg.data.train_ann) and not os.path.exists(cfg.data.train_ann)
+            else cfg.data.train_ann
+        )
+
+        train_transform = build_det_transform(img_size=cfg.data.img_size, is_train=True)
+        val_transform = build_det_transform(img_size=cfg.data.img_size, is_train=False)
+
+        train_dataset = DetDataset(
+            root=train_root,
+            ann_file=train_ann,
+            transform=train_transform,
+            num_classes=cfg.data.num_classes,
+        )
+        train_loader = DataLoader(
+            train_dataset,
             batch_size=cfg.data.batch_size,
             shuffle=True,
             num_workers=cfg.data.num_workers,
@@ -127,35 +123,48 @@ def generic_train(
             drop_last=False,
         )
 
-    val_loader: Optional[DataLoader] = None
-    evaluator: Optional[Any] = None
-    val_root = (
-        os.path.join(cfg.data.data_root, cfg.data.val_img)
-        if not os.path.isabs(cfg.data.val_img) and not os.path.exists(cfg.data.val_img)
-        else cfg.data.val_img
-    )
-    val_ann = (
-        os.path.join(cfg.data.data_root, cfg.data.val_ann)
-        if not os.path.isabs(cfg.data.val_ann) and not os.path.exists(cfg.data.val_ann)
-        else cfg.data.val_ann
-    )
-    if os.path.exists(val_root) and os.path.exists(val_ann):
-        val_dataset = DetDataset(
-            root=val_root,
-            ann_file=val_ann,
-            transform=val_transform,
-            num_classes=cfg.data.num_classes,
+        if cooldown_epochs > 0 and cooldown_loader is None:
+            cooldown_ds = copy.copy(train_dataset)
+            cooldown_ds.transform = val_transform
+            cooldown_loader = DataLoader(
+                cooldown_ds,
+                batch_size=cfg.data.batch_size,
+                shuffle=True,
+                num_workers=cfg.data.num_workers,
+                collate_fn=det_collate,
+                pin_memory=device.type == "cuda" and cfg.data.pin_memory,
+                drop_last=False,
+            )
+
+    if val_loader is None and hasattr(cfg, "data") and getattr(cfg.data, "val_ann", None):
+        val_transform = build_det_transform(img_size=cfg.data.img_size, is_train=False)
+        val_root = (
+            os.path.join(cfg.data.data_root, cfg.data.val_img)
+            if not os.path.isabs(cfg.data.val_img) and not os.path.exists(cfg.data.val_img)
+            else cfg.data.val_img
         )
-        val_loader = DataLoader(
-            val_dataset,
-            batch_size=cfg.data.val_batch_size or cfg.data.batch_size,
-            shuffle=False,
-            num_workers=cfg.data.num_workers,
-            collate_fn=det_collate,
-            pin_memory=device.type == "cuda" and cfg.data.pin_memory,
+        val_ann = (
+            os.path.join(cfg.data.data_root, cfg.data.val_ann)
+            if not os.path.isabs(cfg.data.val_ann) and not os.path.exists(cfg.data.val_ann)
+            else cfg.data.val_ann
         )
-        if getattr(cfg.eval, "compute_map", True):
-            evaluator = COCOEvaluator(ann_file=val_ann)
+        if os.path.exists(val_root) and os.path.exists(val_ann):
+            val_dataset = DetDataset(
+                root=val_root,
+                ann_file=val_ann,
+                transform=val_transform,
+                num_classes=cfg.data.num_classes,
+            )
+            val_loader = DataLoader(
+                val_dataset,
+                batch_size=cfg.data.val_batch_size or cfg.data.batch_size,
+                shuffle=False,
+                num_workers=cfg.data.num_workers,
+                collate_fn=det_collate,
+                pin_memory=device.type == "cuda" and cfg.data.pin_memory,
+            )
+            if evaluator is None and getattr(cfg.eval, "compute_map", True):
+                evaluator = COCOEvaluator(ann_file=val_ann)
 
     # -- Optimizer fallback --
     if optimizer is None:

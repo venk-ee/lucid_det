@@ -27,11 +27,15 @@ def save_checkpoint(state: Dict[str, Any], path: str) -> None:
 def load_checkpoint(
     path: str,
     device: Union[str, torch.device] = "cpu",
+    weights_only: bool = False,
 ) -> Optional[Dict[str, Any]]:
-    """Load checkpoint dictionary from disk."""
+    """
+    Load checkpoint dictionary from disk.
+    Defaults to weights_only=False to allow unpickling optimizer and scheduler state.
+    """
     if not os.path.exists(path):
         return None
-    return torch.load(path, map_location=device, weights_only=False)
+    return torch.load(path, map_location=device, weights_only=weights_only)
 
 
 def _move_to_device(item: Any, device: torch.device) -> Any:

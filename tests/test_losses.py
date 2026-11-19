@@ -14,6 +14,7 @@ from losses import (
     QualityFocalLoss,
     YOLOv1Loss,
     det_loss,
+    resolve_assigner,
     resolve_box_loss,
     resolve_cls_loss,
 )
@@ -100,6 +101,27 @@ def test_resolve_box_loss() -> None:
         resolve_box_loss("unknown_box_loss")
     with pytest.raises(TypeError):
         resolve_box_loss(12345)  # type: ignore
+
+
+def test_resolve_assigner() -> None:
+    from assigners.simota import DynamicSoftLabelAssigner, dynamic_soft_label_assign
+
+    # None falls back to default function
+    assert resolve_assigner(None) is dynamic_soft_label_assign
+
+    # String lookup
+    resolved = resolve_assigner("simota")
+    assert isinstance(resolved, DynamicSoftLabelAssigner) or resolved is dynamic_soft_label_assign
+
+    # Callable injection
+    def custom_assigner(*args, **kwargs):
+        pass
+
+    assert resolve_assigner(custom_assigner) is custom_assigner
+
+    # Invalid type
+    with pytest.raises(TypeError):
+        resolve_assigner(12345)  # type: ignore
 
 
 def test_det_loss_direct_dependency_injection() -> None:

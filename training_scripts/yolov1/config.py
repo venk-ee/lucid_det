@@ -7,10 +7,10 @@ from dataclasses import dataclass, field
 from typing import Tuple
 
 from training_scripts.base_config import (
-    DataConfig as BaseDataConfig,
+    BaseTrainConfig,
 )
 from training_scripts.base_config import (
-    EvalConfig,
+    DataConfig as BaseDataConfig,
 )
 from training_scripts.base_config import (
     OptimConfig as BaseOptimConfig,
@@ -52,13 +52,11 @@ class OptimConfig(BaseOptimConfig):
 
 
 @dataclass
-class TrainConfig:
+class TrainConfig(BaseTrainConfig):
     """Unified YOLOv1 training configuration."""
 
     exp_name: str = "yolov1_voc"
     work_dir: str = "work_dirs/yolov1_voc"
-    seed: int = 42
     model: ModelConfig = field(default_factory=ModelConfig)
     data: DataConfig = field(default_factory=DataConfig)
     optim: OptimConfig = field(default_factory=OptimConfig)
-    eval: EvalConfig = field(default_factory=EvalConfig)

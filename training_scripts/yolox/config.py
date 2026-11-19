@@ -5,8 +5,12 @@ Structured following clean configuration patterns.
 
 from dataclasses import dataclass, field
 
-from training_scripts.base_config import DataConfig, EvalConfig
-from training_scripts.base_config import OptimConfig as BaseOptimConfig
+from training_scripts.base_config import (
+    BaseTrainConfig,
+)
+from training_scripts.base_config import (
+    OptimConfig as BaseOptimConfig,
+)
 
 
 @dataclass
@@ -31,13 +35,10 @@ class OptimConfig(BaseOptimConfig):
 
 
 @dataclass
-class TrainConfig:
+class TrainConfig(BaseTrainConfig):
     """Unified YOLOX training configuration."""
 
     exp_name: str = "yolox_s"
     work_dir: str = "work_dirs/yolox_s"
-    seed: int = 42
     model: ModelConfig = field(default_factory=ModelConfig)
-    data: DataConfig = field(default_factory=DataConfig)
     optim: OptimConfig = field(default_factory=OptimConfig)
-    eval: EvalConfig = field(default_factory=EvalConfig)
