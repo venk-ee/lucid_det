@@ -8,12 +8,14 @@ import torch
 from losses import (
     BOX_LOSS_MAP,
     CLS_LOSS_MAP,
+    BCEWithLogitsLoss,
     CIoULoss,
     GIoULoss,
     IoULoss,
     QualityFocalLoss,
     YOLOv1Loss,
     det_loss,
+    resolve_assigner,
     resolve_box_loss,
     resolve_cls_loss,
 )
@@ -100,6 +102,27 @@ def test_resolve_box_loss() -> None:
         resolve_box_loss("unknown_box_loss")
     with pytest.raises(TypeError):
         resolve_box_loss(12345)  # type: ignore
+
+
+def test_resolve_assigner() -> None:
+    from assigners.simota import DynamicSoftLabelAssigner, dynamic_soft_label_assign
+
+    # None falls back to default function
+    assert resolve_assigner(None) is dynamic_soft_label_assign
+
+    # String lookup
+    resolved = resolve_assigner("simota")
+    assert isinstance(resolved, DynamicSoftLabelAssigner) or resolved is dynamic_soft_label_assign
+
+    # Callable injection
+    def custom_assigner(*args, **kwargs):
+        pass
+
+    assert resolve_assigner(custom_assigner) is custom_assigner
+
+    # Invalid type
+    with pytest.raises(TypeError):
+        resolve_assigner(12345)  # type: ignore
 
 
 def test_det_loss_direct_dependency_injection() -> None:
@@ -202,3 +225,107 @@ def test_det_loss_zero_ground_truth() -> None:
     total_loss.backward()
     assert pred_cls.grad is not None
     assert pred_boxes.grad is not None
+
+
+def test_det_loss_assigner_injection() -> None:
+    """Test injecting a custom mock assigner into det_loss."""
+    batch_size = 2
+    num_anchors = 100
+    num_classes = 80
+
+    pred_cls = torch.randn(batch_size, num_anchors, num_classes, requires_grad=True)
+    pred_x1y1 = torch.rand(batch_size, num_anchors, 2) * 500.0
+    pred_wh = torch.rand(batch_size, num_anchors, 2) * 100.0 + 1.0
+    pred_boxes = torch.cat([pred_x1y1, pred_x1y1 + pred_wh], dim=-1).requires_grad_(True)
+    centers = torch.rand(num_anchors, 2) * 640.0
+    strides = torch.full((num_anchors, 1), 8.0)
+
+    model_out = {
+        "pred_cls": pred_cls,
+        "pred_boxes": pred_boxes,
+        "anchor_centers": centers,
+        "anchor_strides": strides,
+    }
+
+    gt_boxes = [
+        torch.tensor([[50.0, 50.0, 150.0, 150.0]]),
+        torch.tensor([[100.0, 100.0, 200.0, 200.0], [300.0, 300.0, 400.0, 400.0]]),
+    ]
+    gt_labels = [
+        torch.tensor([0]),
+        torch.tensor([1, 2]),
+    ]
+
+    # Track calls to verify the mock assigner is invoked
+    call_count = 0
+
+    def mock_assigner(
+        pred_cls_logits: torch.Tensor,
+        pred_boxes: torch.Tensor,
+        centers: torch.Tensor,
+        strides: torch.Tensor,
+        gt_boxes: torch.Tensor,
+        gt_labels: torch.Tensor,
+        num_classes: int,
+        **kwargs,
+    ):
+        nonlocal call_count
+        call_count += 1
+
+        A = pred_cls_logits.shape[0]
+        labels = torch.full((A,), num_classes, dtype=torch.long, device=pred_cls_logits.device)
+        label_weights = torch.ones(A, device=pred_cls_logits.device)
+        bbox_targets = torch.zeros((A, 4), device=pred_cls_logits.device)
+        assign_metrics = torch.zeros(A, device=pred_cls_logits.device)
+
+        # Assign the first anchor to the first ground-truth box
+        if gt_boxes.numel() > 0:
+            labels[0] = gt_labels[0]
+            bbox_targets[0] = gt_boxes[0]
+            assign_metrics[0] = 0.8
+
+        return labels, label_weights, bbox_targets, assign_metrics
+
+    total_loss, loss_dict = det_loss(
+        model_out=model_out,
+        gt_boxes_list=gt_boxes,
+        gt_labels_list=gt_labels,
+        assigner=mock_assigner,
+    )
+
+    # Verify the mock was called once per batch item
+    assert call_count == batch_size
+    assert torch.isfinite(total_loss)
+    assert "loss_cls" in loss_dict and "loss_box" in loss_dict
+    total_loss.backward()
+    assert pred_cls.grad is not None
+    assert pred_boxes.grad is not None
+
+
+def test_bce_with_logits_loss() -> None:
+    loss_fn = BCEWithLogitsLoss()
+    pred = torch.randn(4, 10, requires_grad=True)
+    target = torch.rand(4, 10)  # Continuous soft targets
+    loss = loss_fn(pred, target)
+    assert loss.shape == pred.shape
+    assert torch.isfinite(loss).all()
+    loss.sum().backward()
+    assert pred.grad is not None
+
+
+def test_resolve_loss_fresh_instances() -> None:
+    # Verify resolve_cls_loss and resolve_box_loss return fresh unshared instances
+    cls1 = resolve_cls_loss("qfl")
+    cls2 = resolve_cls_loss("qfl")
+    assert cls1 is not cls2
+    assert isinstance(cls1, QualityFocalLoss)
+
+    box1 = resolve_box_loss("giou")
+    box2 = resolve_box_loss("giou")
+    assert box1 is not box2
+    assert isinstance(box1, GIoULoss)
+
+    bce1 = resolve_cls_loss("bce")
+    bce2 = resolve_cls_loss("bce_loss")
+    assert bce1 is not bce2
+    assert isinstance(bce1, BCEWithLogitsLoss)

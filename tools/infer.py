@@ -20,7 +20,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from models import YOLOX, RTMDet, YOLOv1
+from models import build_detector
 from transforms import letterbox_image, unletterbox_boxes_xyxy
 
 
@@ -132,18 +132,12 @@ def build_family_model(
 
     img_size = resolve_img_size(args.img_size, data_cfg)
 
-    if family == "rtmdet":
-        return RTMDet(
-            arch=arch,
-            num_classes=num_classes,
-            score_thresh=args.conf,
-        )
-    elif family == "yolox":
-        return YOLOX(
-            arch=arch,
-            num_classes=num_classes,
-            score_thresh=args.conf,
-        )
+    kwargs: Dict[str, Any] = {
+        "num_classes": num_classes,
+        "score_thresh": args.conf,
+    }
+    if family in ("rtmdet", "yolox"):
+        kwargs["arch"] = arch
     elif family == "yolov1":
         split_size = (
             args.split_size
@@ -155,15 +149,15 @@ def build_family_model(
             if args.num_boxes is not None
             else (model_cfg.get("num_boxes", 2) if model_cfg else 2)
         )
-        return YOLOv1(
-            num_classes=num_classes,
-            score_thresh=args.conf,
-            split_size=split_size,
-            num_boxes=num_boxes,
-            img_size=float(img_size),
+        kwargs.update(
+            {
+                "split_size": split_size,
+                "num_boxes": num_boxes,
+                "img_size": float(img_size),
+            }
         )
-    else:
-        raise ValueError(f"Unknown detector family '{family}'. Choose from: rtmdet, yolox, yolov1")
+
+    return build_detector(family, **kwargs)
 
 
 def parse_args() -> argparse.Namespace:

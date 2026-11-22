@@ -51,6 +51,8 @@ def test_yolox_head_forward() -> None:
     assert isinstance(out, DetectionOutput)
     assert out.pred_cls.shape == (2, 2100, 80)
     assert out.pred_boxes.shape == (2, 2100, 4)
+    assert out.anchor_centers.shape == (2100, 2)
+    assert out.anchor_strides.shape in ((2100,), (2100, 1))
 
 
 def test_yolov1_head_forward() -> None:
@@ -65,9 +67,11 @@ def test_yolov1_head_forward() -> None:
 
     out = head(feat)
     assert isinstance(out, DetectionOutput)
-    # Total anchors = 7 * 7 * 2 = 98
+    # Total anchors = 7 * 7 * 2 = 98 (independent of batch size 2)
     assert out.pred_boxes.shape == (2, 98, 4)
     assert out.pred_cls.shape == (2, 98, 20)
+    assert out.anchor_centers.shape == (98, 2)
+    assert out.anchor_strides.shape in ((98,), (98, 1))
 
 
 def test_build_head_via_head_map() -> None:

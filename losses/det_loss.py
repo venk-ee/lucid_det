@@ -15,9 +15,19 @@ from assigners.simota import dynamic_soft_label_assign
 from losses.iou_loss import CIoULoss, GIoULoss, IoULoss
 from losses.qfl import QualityFocalLoss
 
+
+class BCEWithLogitsLoss(nn.Module):
+    """Binary Cross Entropy with logits loss supporting soft matrix targets."""
+
+    def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        return F.binary_cross_entropy_with_logits(pred, target, reduction="none")
+
+
 CLS_LOSS_MAP: Dict[str, Type[nn.Module]] = {
     "qfl": QualityFocalLoss,
     "quality_focal_loss": QualityFocalLoss,
+    "bce": BCEWithLogitsLoss,
+    "bce_loss": BCEWithLogitsLoss,
 }
 
 BOX_LOSS_MAP: Dict[str, Type[nn.Module]] = {
@@ -28,10 +38,6 @@ BOX_LOSS_MAP: Dict[str, Type[nn.Module]] = {
     "iou": IoULoss,
     "iou_loss": IoULoss,
 }
-
-
-_DEFAULT_CLS_INSTANCES: Dict[str, Callable] = {}
-_DEFAULT_BOX_INSTANCES: Dict[str, Callable] = {}
 
 
 def resolve_cls_loss(
@@ -46,9 +52,7 @@ def resolve_cls_loss(
             raise ValueError(
                 f"Unknown classification loss '{cls_loss}'. Available: {sorted(CLS_LOSS_MAP.keys())}"
             )
-        if key not in _DEFAULT_CLS_INSTANCES:
-            _DEFAULT_CLS_INSTANCES[key] = CLS_LOSS_MAP[key]()
-        return _DEFAULT_CLS_INSTANCES[key]
+        return CLS_LOSS_MAP[key]()
     if isinstance(cls_loss, type) and issubclass(cls_loss, nn.Module):
         return cls_loss()
     if callable(cls_loss):
@@ -70,9 +74,7 @@ def resolve_box_loss(
             raise ValueError(
                 f"Unknown box loss '{box_loss}'. Available: {sorted(BOX_LOSS_MAP.keys())}"
             )
-        if key not in _DEFAULT_BOX_INSTANCES:
-            _DEFAULT_BOX_INSTANCES[key] = BOX_LOSS_MAP[key]()
-        return _DEFAULT_BOX_INSTANCES[key]
+        return BOX_LOSS_MAP[key]()
     if isinstance(box_loss, type) and issubclass(box_loss, nn.Module):
         return box_loss()
     if callable(box_loss):
@@ -80,6 +82,21 @@ def resolve_box_loss(
     raise TypeError(
         f"Invalid box_loss: expected str, nn.Module class/instance, or Callable, got {type(box_loss)}"
     )
+
+
+def resolve_assigner(
+    assigner: Optional[Union[str, Callable]] = None,
+) -> Callable:
+    """Resolve target assigner into a callable function or module."""
+    if assigner is None:
+        return dynamic_soft_label_assign
+    if isinstance(assigner, str):
+        from assigners import build_assigner
+
+        return build_assigner(assigner)
+    if callable(assigner):
+        return assigner
+    raise TypeError(f"Invalid assigner: expected str, Callable, or None, got {type(assigner)}")
 
 
 def det_loss(
@@ -90,6 +107,7 @@ def det_loss(
     box_loss: Union[str, Type[nn.Module], nn.Module, Callable] = "giou",
     box_weight: float = 3.5,
     l1_weight: float = 0.25,
+    assigner: Optional[Callable] = None,
 ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
     """
     Compute multi-task detection loss for anchor-free detectors.
@@ -106,6 +124,8 @@ def det_loss(
         box_loss: Box regression loss instance, class, callable, or name (default: 'giou').
         box_weight: Multiplier weight for bounding box loss.
         l1_weight: Multiplier weight for auxiliary smooth L1 box loss.
+        assigner: Optional callable assigner following the universal assigner protocol.
+            If None, falls back to dynamic_soft_label_assign.
 
     Returns:
         total_loss: Scalar loss tensor with attached computational graph.
@@ -113,6 +133,7 @@ def det_loss(
     """
     cls_loss_fn = resolve_cls_loss(cls_loss)
     box_loss_fn = resolve_box_loss(box_loss)
+    _assigner = resolve_assigner(assigner)
 
     pred_cls = model_out["pred_cls"]
     pred_boxes = model_out["pred_boxes"]
@@ -133,7 +154,7 @@ def det_loss(
         gb = gt_boxes_list[b].to(device)
         gl = gt_labels_list[b].to(device)
 
-        labels, label_weights, bbox_targets, assign_metrics = dynamic_soft_label_assign(
+        labels, label_weights, bbox_targets, assign_metrics = _assigner(
             pred_cls_logits=pred_cls[b].detach().float(),
             pred_boxes=pred_boxes[b].detach().float(),
             centers=centers.float(),

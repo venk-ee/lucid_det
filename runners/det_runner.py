@@ -27,11 +27,16 @@ def save_checkpoint(state: Dict[str, Any], path: str) -> None:
 def load_checkpoint(
     path: str,
     device: Union[str, torch.device] = "cpu",
+    weights_only: bool = True,
 ) -> Optional[Dict[str, Any]]:
-    """Load checkpoint dictionary from disk."""
+    """
+    Load checkpoint dictionary from disk.
+    Defaults to weights_only=True for secure unpickling. Set weights_only=False
+    when loading legacy checkpoints with complex pickled objects.
+    """
     if not os.path.exists(path):
         return None
-    return torch.load(path, map_location=device, weights_only=False)
+    return torch.load(path, map_location=device, weights_only=weights_only)
 
 
 def _move_to_device(item: Any, device: torch.device) -> Any:
@@ -109,7 +114,7 @@ def train_one_epoch(
             raise TypeError(f"Unsupported batch type: {type(batch)}")
 
         with torch.amp.autocast(device_type=device.type, dtype=amp_dtype, enabled=effective_amp):
-            outputs = model(images, training_override=True)
+            outputs = model(images)
             loss, loss_dict = loss_fn(outputs, batch_targets)
 
         if not torch.isfinite(loss):
@@ -182,7 +187,7 @@ def val_one_epoch(
             else:
                 continue
 
-            outputs = model(images, training_override=False)
+            outputs = model(images)
             batch_dets = None
             if isinstance(outputs, dict) and "detections" in outputs:
                 batch_dets = outputs["detections"]

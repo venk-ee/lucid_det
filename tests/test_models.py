@@ -127,6 +127,40 @@ def test_detector_direct_dependency_injection() -> None:
     assert model_v1.head is head_v1
 
 
+def test_detector_export_mode_and_postprocess() -> None:
+    model = RTMDet(arch="tiny", num_classes=4)
+
+    # Verify strides attribute exists
+    assert hasattr(model, "strides")
+    assert isinstance(model.strides, (tuple, list))
+
+    # Verify export_mode defaults to False
+    assert model.export_mode is False
+
+    x = torch.randn(1, 3, 320, 320)
+
+    # Test export_mode=True returns a 2-tuple of tensors
+    model.eval()
+    model.export_mode = True
+    with torch.no_grad():
+        result = model(x)
+    assert isinstance(result, tuple)
+    assert len(result) == 2
+    pred_boxes, pred_cls = result
+    assert isinstance(pred_boxes, torch.Tensor)
+    assert isinstance(pred_cls, torch.Tensor)
+    # Sigmoid output should be in [0, 1]
+    assert (pred_cls >= 0).all() and (pred_cls <= 1).all()
+
+    # Test postprocess() works independently
+    model.export_mode = False
+    with torch.no_grad():
+        feats = model.extract_feat(x)
+        raw_outputs = model.head(feats)
+        processed = model.postprocess(raw_outputs, x)
+    assert hasattr(processed, "detections") or "detections" in processed
+
+
 def test_checkpoint_and_from_pretrained_methods(tmp_path) -> None:
     model = RTMDet(arch="tiny", num_classes=5)
     ckpt_path = tmp_path / "model.pth"
@@ -135,15 +169,49 @@ def test_checkpoint_and_from_pretrained_methods(tmp_path) -> None:
         ckpt_path,
     )
 
-    # 1. Constructor checkpoint loading
+    # 1. Constructor checkpoint loading (restricted unpickling by default)
     model_loaded = RTMDet(arch="tiny", num_classes=5, checkpoint=ckpt_path)
     assert isinstance(model_loaded, RTMDet)
 
-    # 2. from_pretrained classmethod
+    # 2. from_pretrained classmethod (restricted unpickling by default)
     model_pretrained = RTMDet.from_pretrained(ckpt_path)
     assert isinstance(model_pretrained, RTMDet)
     assert model_pretrained.num_classes == 5
 
+    # 3. Explicit weights_only opt-in
+    meta = model.load_checkpoint(ckpt_path, weights_only=True)
+    assert meta["arch"] == "tiny"
+    meta_legacy = model.load_checkpoint(ckpt_path, weights_only=False)
+    assert meta_legacy["arch"] == "tiny"
+
     # 3. Missing file raises FileNotFoundError
     with pytest.raises(FileNotFoundError):
         RTMDet.from_pretrained(tmp_path / "non_existent.pth")
+
+
+def test_multiclass_nms_from_logits() -> None:
+    from core.nms import multiclass_nms, multiclass_nms_batch
+
+    boxes = torch.tensor([[10.0, 10.0, 50.0, 50.0], [20.0, 20.0, 60.0, 60.0]])
+    # Logits where values fall inside [0, 1] - heuristic would fail, but from_logits=True works deterministically
+    logits = torch.tensor([[0.5, 0.2], [0.1, 0.4]])
+
+    det_boxes, det_scores, det_labels = multiclass_nms(
+        boxes, logits, score_thresh=0.01, from_logits=True
+    )
+    expected_scores = logits.sigmoid().max(dim=-1)[0]
+    assert torch.allclose(det_scores[0], expected_scores[0], atol=1e-5)
+
+    # With from_logits=False, values are preserved without sigmoid
+    probs = torch.tensor([[0.7, 0.2], [0.1, 0.8]])
+    det_boxes_p, det_scores_p, det_labels_p = multiclass_nms(
+        boxes, probs, score_thresh=0.01, from_logits=False
+    )
+    assert torch.allclose(det_scores_p[0], torch.tensor(0.8), atol=1e-5)
+
+    # Batch version with from_logits=True
+    batch_boxes = boxes.unsqueeze(0)
+    batch_logits = logits.unsqueeze(0)
+    batch_res = multiclass_nms_batch(batch_boxes, batch_logits, score_thresh=0.01, from_logits=True)
+    assert len(batch_res) == 1
+    assert "boxes" in batch_res[0] and "scores" in batch_res[0]
