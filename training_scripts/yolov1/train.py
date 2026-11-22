@@ -16,7 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from losses import YOLOv1Loss, encode_yolov1_targets
 from models import YOLOv1
-from runners import generic_train
+from runners import generic_train, set_seed
 from training_scripts.common import add_common_training_args, apply_common_training_args
 from training_scripts.yolov1.config import TrainConfig
 
@@ -69,6 +69,7 @@ def build_loss_fn(cfg: TrainConfig, device: torch.device) -> Callable:
 
 def run_training(cfg: TrainConfig) -> None:
     """Execute complete YOLOv1 training lifecycle via generic_train."""
+    set_seed(cfg.seed)
     device = torch.device(cfg.optim.device)
     model = build_model(cfg, device)
     loss_fn = build_loss_fn(cfg, device)

@@ -11,6 +11,7 @@ from runners.det_runner import (
 from runners.generic_runner import (
     build_optimizer,
     generic_train,
+    set_seed,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "val_one_epoch",
     "build_optimizer",
     "generic_train",
+    "set_seed",
 ]

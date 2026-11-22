@@ -27,11 +27,12 @@ def save_checkpoint(state: Dict[str, Any], path: str) -> None:
 def load_checkpoint(
     path: str,
     device: Union[str, torch.device] = "cpu",
-    weights_only: bool = False,
+    weights_only: bool = True,
 ) -> Optional[Dict[str, Any]]:
     """
     Load checkpoint dictionary from disk.
-    Defaults to weights_only=False to allow unpickling optimizer and scheduler state.
+    Defaults to weights_only=True for secure unpickling. Set weights_only=False
+    when loading legacy checkpoints with complex pickled objects.
     """
     if not os.path.exists(path):
         return None

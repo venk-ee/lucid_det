@@ -49,6 +49,15 @@ def build_optimizer(
     return torch.optim.AdamW(param_groups, lr=lr)
 
 
+def set_seed(seed: int = 42) -> None:
+    """Set random seed across Python, NumPy, and PyTorch for deterministic execution."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
 def generic_train(
     cfg: Any,
     model: nn.Module,
@@ -80,11 +89,7 @@ def generic_train(
     """
     # -- Seeding --
     seed = getattr(cfg, "seed", 42)
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
+    set_seed(seed)
 
     work_dir = getattr(cfg, "work_dir", "work_dirs")
     os.makedirs(work_dir, exist_ok=True)
@@ -171,7 +176,10 @@ def generic_train(
         optimizer = build_optimizer(model, lr=cfg.optim.lr, weight_decay=cfg.optim.weight_decay)
 
     # -- Scheduler, EMA, Scaler --
-    total_steps = cfg.optim.epochs * len(train_loader)
+    normal_epochs = max(0, cfg.optim.epochs - cooldown_epochs)
+    cd_epochs = min(cfg.optim.epochs, cooldown_epochs)
+    cd_len = len(cooldown_loader) if cooldown_loader is not None else len(train_loader)
+    total_steps = normal_epochs * len(train_loader) + cd_epochs * cd_len
     warmup_steps = cfg.optim.warmup_epochs * len(train_loader)
     lr_scheduler = build_lr_scheduler(
         optimizer,
@@ -193,7 +201,7 @@ def generic_train(
     if resume_path:
         if not os.path.exists(resume_path):
             raise FileNotFoundError(f"Resume checkpoint not found: {resume_path}")
-        ckpt = load_checkpoint(resume_path, device=device)
+        ckpt = load_checkpoint(resume_path, device=device, weights_only=False)
         if ckpt is not None:
             model.load_state_dict(ckpt["model"])
             if "ema" in ckpt and ckpt["ema"] is not None:
@@ -250,16 +258,29 @@ def generic_train(
 
         # -- Validation --
         is_best = False
-        if val_loader is not None and (
-            epoch % getattr(cfg.eval, "eval_interval", 1) == 0 or epoch == cfg.optim.epochs
-        ):
-            eval_model = ema.module if ema is not None else model
-            val_metrics = val_one_epoch(eval_model, val_loader, device=device, evaluator=evaluator)
-            print(f"--> Epoch [{epoch}/{cfg.optim.epochs}] Validation Metrics: {val_metrics}")
-            mAP = val_metrics.get("mAP_50_95", val_metrics.get("mAP_50", 0.0))
-            is_best = mAP > best_metric
-            if is_best:
-                best_metric = mAP
+        if val_loader is not None:
+            if epoch % getattr(cfg.eval, "eval_interval", 1) == 0 or epoch == cfg.optim.epochs:
+                eval_model = ema.module if ema is not None else model
+                val_metrics = val_one_epoch(
+                    eval_model, val_loader, device=device, evaluator=evaluator
+                )
+                print(f"--> Epoch [{epoch}/{cfg.optim.epochs}] Validation Metrics: {val_metrics}")
+                if "mAP_50_95" in val_metrics or "mAP_50" in val_metrics:
+                    mAP = val_metrics.get("mAP_50_95", val_metrics.get("mAP_50", 0.0))
+                    is_best = mAP > best_metric
+                    if is_best:
+                        best_metric = mAP
+                elif "val_loss" in val_metrics:
+                    val_loss = val_metrics["val_loss"]
+                    is_best = val_loss < best_loss
+                    if is_best:
+                        best_loss = val_loss
+                else:
+                    is_best = mean_loss < best_loss
+                    if is_best:
+                        best_loss = mean_loss
+            else:
+                is_best = False
         else:
             is_best = mean_loss < best_loss
             if is_best:

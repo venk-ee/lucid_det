@@ -233,10 +233,11 @@ def test_production_torch_jit_and_export_tracing(dummy_input_320: torch.Tensor) 
         boxes, scores = model(dummy_input_320)
         assert boxes.ndim == 3 and scores.ndim == 3
 
-        # 1. Deterministic torch.export (PyTorch 2.x native export standard)
-        ep = torch.export.export(model, (dummy_input_320,))
-        assert ep is not None
-        assert len(ep.graph.nodes) > 100
+        # 1. Deterministic torch.export (PyTorch 2.x native export standard, guarded for PyTorch >= 2.1)
+        if hasattr(torch, "export") and hasattr(torch.export, "export"):
+            ep = torch.export.export(model, (dummy_input_320,))
+            assert ep is not None
+            assert len(ep.graph.nodes) > 100
 
         # 2. Legacy TorchScript tracing
         traced_model = torch.jit.trace(model, dummy_input_320)

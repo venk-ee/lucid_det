@@ -9,10 +9,10 @@ interchanged via dependency injection (e.g. into losses.det_loss).
 
 Inputs:
     pred_cls_logits: torch.Tensor (A, num_classes) — per-anchor classification logits.
-    pred_boxes:      torch.Tensor (A, 4) — predicted boxes in xyxy format.
-    centers:         torch.Tensor (A, 2) — anchor center coordinates.
-    strides:         torch.Tensor (A, 1) — per-anchor stride values.
-    gt_boxes:        torch.Tensor (G, 4) — ground-truth boxes in xyxy format.
+    pred_boxes:      torch.Tensor (A, 4) — predicted boxes in absolute image-pixel xyxy format.
+    centers:         torch.Tensor (A, 2) — anchor center coordinates in absolute pixel units.
+    strides:         torch.Tensor (A, 1) — per-anchor stride values in pixel units.
+    gt_boxes:        torch.Tensor (G, 4) — ground-truth boxes in absolute image-pixel xyxy format.
     gt_labels:       torch.Tensor (G,) — ground-truth class labels (0-indexed).
     num_classes:     int — total number of foreground classes.
     **kwargs:        additional implementation-specific arguments.
@@ -20,8 +20,8 @@ Inputs:
 Returns:
     labels:        torch.Tensor (A,) — assigned label per anchor (background is num_classes).
     label_weights: torch.Tensor (A,) — weight per anchor for classification loss.
-    bbox_targets:  torch.Tensor (A, 4) — target box per anchor (valid for positives).
-    assign_metrics: torch.Tensor (A,) — assignment quality score (e.g. IoU) per anchor.
+    bbox_targets:  torch.Tensor (A, 4) — target box per anchor in absolute image-pixel xyxy format (valid for positives).
+    assign_metrics: torch.Tensor (A,) — assignment quality score (e.g. IoU, non-negative, 0 for background) per anchor.
 """
 
 from typing import Any, Dict
