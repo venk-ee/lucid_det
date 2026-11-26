@@ -133,42 +133,60 @@ def convert_yolox(raw_sd: Any, preset: ModelWeightPreset) -> Dict[str, torch.Ten
 
 
 # Register Official Presets
-register_preset(
-    ModelWeightPreset(
-        name="yolox_s",
-        family="yolox",
-        arch="s",
-        builder_fn="build_yolox",
-        num_classes=80,
-        url="https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_s.pth",
-        cache_hints=(
-            "checkpoints/downloads/yolox_s.pth",
-            "/mnt/ken/proj/vision_lib/yolo_x/yolox_s.pth",
-        ),
-        color_space="BGR",
-        mean=(0.0, 0.0, 0.0),
-        std=(1.0, 1.0, 1.0),
-        input_size=(640, 640),
-        description="YOLOX-s official Megvii pretrained on COCO (80 classes, 40.5 mAP)",
-    )
-)
-
-register_preset(
-    ModelWeightPreset(
-        name="yolox_tiny",
-        family="yolox",
-        arch="tiny",
-        builder_fn="build_yolox",
-        num_classes=80,
-        url="https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_tiny.pth",
-        cache_hints=(
+_YOLOX_BASE_URL = "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0"
+_YOLOX_PRESET_SPECS = (
+    (
+        "tiny",
+        (416, 416),
+        (
             "checkpoints/downloads/yolox_tiny.pth",
             "/mnt/ken/proj/vision_lib/yolo_x/yolox_tiny.pth",
         ),
-        color_space="BGR",
-        mean=(0.0, 0.0, 0.0),
-        std=(1.0, 1.0, 1.0),
-        input_size=(416, 416),
-        description="YOLOX-tiny official Megvii pretrained on COCO (80 classes, 32.8 mAP)",
-    )
+        "YOLOX-tiny official Megvii pretrained on COCO (80 classes, 32.8 mAP)",
+    ),
+    (
+        "s",
+        (640, 640),
+        (
+            "checkpoints/downloads/yolox_s.pth",
+            "/mnt/ken/proj/vision_lib/yolo_x/yolox_s.pth",
+        ),
+        "YOLOX-s official Megvii pretrained on COCO (80 classes, 40.5 mAP)",
+    ),
+    (
+        "m",
+        (640, 640),
+        ("checkpoints/downloads/yolox_m.pth",),
+        "YOLOX-m official Megvii pretrained on COCO (80 classes, 46.9 mAP)",
+    ),
+    (
+        "l",
+        (640, 640),
+        ("checkpoints/downloads/yolox_l.pth",),
+        "YOLOX-l official Megvii pretrained on COCO (80 classes, 49.7 mAP)",
+    ),
+    (
+        "x",
+        (640, 640),
+        ("checkpoints/downloads/yolox_x.pth",),
+        "YOLOX-x official Megvii pretrained on COCO (80 classes, 51.1 mAP)",
+    ),
 )
+
+for _arch, _input_size, _cache_hints, _description in _YOLOX_PRESET_SPECS:
+    register_preset(
+        ModelWeightPreset(
+            name=f"yolox_{_arch}",
+            family="yolox",
+            arch=_arch,
+            builder_fn="build_yolox",
+            num_classes=80,
+            url=f"{_YOLOX_BASE_URL}/yolox_{_arch}.pth",
+            cache_hints=_cache_hints,
+            color_space="BGR",
+            mean=(0.0, 0.0, 0.0),
+            std=(1.0, 1.0, 1.0),
+            input_size=_input_size,
+            description=_description,
+        )
+    )

@@ -77,36 +77,44 @@ def convert_rtmdet(raw_sd: Any, preset: ModelWeightPreset) -> Dict[str, torch.Te
 
 
 # Register Official Presets
-register_preset(
-    ModelWeightPreset(
-        name="rtmdet_s",
-        family="rtmdet",
-        arch="s",
-        builder_fn="build_rtmdet",
-        num_classes=80,
-        url="https://download.openmmlab.com/mmyolo/v0/rtmdet/rtmdet_s_syncbn_fast_8xb32-300e_coco/rtmdet_s_syncbn_fast_8xb32-300e_coco_20221230_182329-888a1e51.pth",
-        cache_hints=(),
-        color_space="RGB",
-        mean=(123.675, 116.28, 103.53),
-        std=(58.395, 57.12, 57.375),
-        input_size=(640, 640),
-        description="RTMDet-s pretrained on COCO (80 classes, 40.3 mAP)",
-    )
+_RTMDET_BASE_URL = "https://download.openmmlab.com/mmyolo/v0/rtmdet"
+_RTMDET_PRESET_SPECS = (
+    (
+        "tiny",
+        f"{_RTMDET_BASE_URL}/rtmdet_tiny_syncbn_fast_8xb32-300e_coco/rtmdet_tiny_syncbn_fast_8xb32-300e_coco_20230102_140117-db32cd39.pth",
+        "RTMDet-tiny pretrained on COCO (80 classes, 33.2 mAP)",
+    ),
+    (
+        "s",
+        f"{_RTMDET_BASE_URL}/rtmdet_s_syncbn_fast_8xb32-300e_coco/rtmdet_s_syncbn_fast_8xb32-300e_coco_20221230_182329-888a1e51.pth",
+        "RTMDet-s pretrained on COCO (80 classes, 40.3 mAP)",
+    ),
+    (
+        "m",
+        f"{_RTMDET_BASE_URL}/rtmdet_m_syncbn_fast_8xb32-300e_coco/rtmdet_m_syncbn_fast_8xb32-300e_coco_20230102_135952-40af4fe8.pth",
+        "RTMDet-m pretrained on COCO (80 classes, 49.4 mAP)",
+    ),
+    (
+        "l",
+        f"{_RTMDET_BASE_URL}/rtmdet_l_syncbn_fast_8xb32-300e_coco/rtmdet_l_syncbn_fast_8xb32-300e_coco_20230102_135928-ee3abdc4.pth",
+        "RTMDet-l pretrained on COCO (80 classes, 51.4 mAP)",
+    ),
 )
 
-register_preset(
-    ModelWeightPreset(
-        name="rtmdet_tiny",
-        family="rtmdet",
-        arch="tiny",
-        builder_fn="build_rtmdet",
-        num_classes=80,
-        url="https://download.openmmlab.com/mmyolo/v0/rtmdet/rtmdet_tiny_syncbn_fast_8xb32-300e_coco/rtmdet_tiny_syncbn_fast_8xb32-300e_coco_20230102_140117-db32cd39.pth",
-        cache_hints=(),
-        color_space="RGB",
-        mean=(123.675, 116.28, 103.53),
-        std=(58.395, 57.12, 57.375),
-        input_size=(640, 640),
-        description="RTMDet-tiny pretrained on COCO (80 classes, 33.2 mAP)",
+for _arch, _url, _description in _RTMDET_PRESET_SPECS:
+    register_preset(
+        ModelWeightPreset(
+            name=f"rtmdet_{_arch}",
+            family="rtmdet",
+            arch=_arch,
+            builder_fn="build_rtmdet",
+            num_classes=80,
+            url=_url,
+            cache_hints=(),
+            color_space="RGB",
+            mean=(123.675, 116.28, 103.53),
+            std=(58.395, 57.12, 57.375),
+            input_size=(640, 640),
+            description=_description,
+        )
     )
-)
