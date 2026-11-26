@@ -205,8 +205,9 @@ class DetectionTransform:
         - gt_labels: torch.Tensor [N] int64
     """
 
-    def __init__(self, pipeline: Any) -> None:
+    def __init__(self, pipeline: Any, bgr: bool = False) -> None:
         self.pipeline = pipeline
+        self.bgr = bgr
 
     def __call__(
         self,
@@ -214,6 +215,8 @@ class DetectionTransform:
         bboxes: Sequence[Sequence[float]],
         labels: Sequence[int],
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        if self.bgr:
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         res = self.pipeline(image=image, bboxes=bboxes, labels=labels)
 
         # Convert COCO [x, y, w, h] to [x1, y1, x2, y2]
@@ -244,6 +247,8 @@ def build_det_transform(
     pad_val: int = 114,
     mean: Tuple[float, float, float] = (0.485, 0.456, 0.406),
     std: Tuple[float, float, float] = (0.229, 0.224, 0.225),
+    max_pixel_value: float = 255.0,
+    bgr: bool = False,
     is_train: bool = True,
     hflip_prob: float = 0.5,
     vflip_prob: float = 0.5,
@@ -323,7 +328,7 @@ def build_det_transform(
                 border_mode=0,
                 fill=(pad_val, pad_val, pad_val),
             ),
-            A.Normalize(mean=mean, std=std),
+            A.Normalize(mean=mean, std=std, max_pixel_value=max_pixel_value),
             ToTensorV2(),
         ]
     )
@@ -339,4 +344,4 @@ def build_det_transform(
         ),
     )
 
-    return DetectionTransform(pipeline)
+    return DetectionTransform(pipeline, bgr=bgr)

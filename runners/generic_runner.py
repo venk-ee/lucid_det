@@ -5,10 +5,12 @@ eliminating duplication across model-family launchers.
 """
 
 import copy
+import json
 import os
 import random
+import time
 from dataclasses import asdict
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import numpy as np
 import torch
@@ -58,6 +60,111 @@ def set_seed(seed: int = 42) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
+def _resolve_data_path(data_root: str, sub_or_abs: str) -> str:
+    """Resolve a dataset path relative to data_root unless already absolute or existing."""
+    if os.path.isabs(sub_or_abs) or os.path.exists(sub_or_abs):
+        return sub_or_abs
+    return os.path.join(data_root, sub_or_abs)
+
+
+def extract_state_dict(ckpt: Any) -> Dict[str, Any]:
+    """Extract a clean model state_dict from a checkpoint payload."""
+    if isinstance(ckpt, dict):
+        if "ema" in ckpt and isinstance(ckpt["ema"], dict):
+            ema_val = ckpt["ema"]
+            sd = (
+                ema_val["ema"] if "ema" in ema_val and isinstance(ema_val["ema"], dict) else ema_val
+            )
+        elif "model" in ckpt and isinstance(ckpt["model"], dict):
+            sd = ckpt["model"]
+        elif "state_dict" in ckpt and isinstance(ckpt["state_dict"], dict):
+            sd = ckpt["state_dict"]
+        else:
+            sd = ckpt
+    else:
+        sd = ckpt
+
+    return {(k[7:] if k.startswith("module.") else k): v for k, v in sd.items()}
+
+
+def _load_pretrained_weights(
+    model: nn.Module,
+    weights_path: str,
+    device: torch.device,
+    strict: bool = True,
+) -> None:
+    """Load model weights from a checkpoint file with optional shape filtering."""
+    if not os.path.exists(weights_path):
+        raise FileNotFoundError(f"Weights checkpoint not found: {weights_path}")
+    ckpt = load_checkpoint(weights_path, device=device, weights_only=False)
+    sd = extract_state_dict(ckpt)
+    if strict:
+        model.load_state_dict(sd, strict=True)
+        print(f"--> Loaded weights (strict=True) from {weights_path}")
+        return
+
+    model_sd = model.state_dict()
+    filtered_sd: Dict[str, Any] = {}
+    skipped_shape = []
+    for k, v in sd.items():
+        if k in model_sd and model_sd[k].shape != v.shape:
+            skipped_shape.append(k)
+            continue
+        filtered_sd[k] = v
+
+    incompatible = model.load_state_dict(filtered_sd, strict=False)
+    print(
+        f"--> Loaded pretrained weights from {weights_path} "
+        f"(missing={len(incompatible.missing_keys)}, "
+        f"unexpected={len(incompatible.unexpected_keys)}, "
+        f"skipped_shape={len(skipped_shape)})"
+    )
+
+
+def _build_val_loader_and_evaluator(
+    cfg: Any,
+    device: torch.device,
+    val_loader: Optional[DataLoader] = None,
+    evaluator: Optional[Any] = None,
+    val_transform: Optional[Callable] = None,
+    require_exists: bool = False,
+) -> Tuple[Optional[DataLoader], Optional[Any]]:
+    """Construct validation DataLoader and COCOEvaluator when not injected."""
+    if val_loader is None and hasattr(cfg, "data") and getattr(cfg.data, "val_ann", None):
+        if val_transform is None:
+            val_transform = build_det_transform(img_size=cfg.data.img_size, is_train=False)
+        val_root = _resolve_data_path(cfg.data.data_root, cfg.data.val_img)
+        val_ann = _resolve_data_path(cfg.data.data_root, cfg.data.val_ann)
+        if os.path.exists(val_root) and os.path.exists(val_ann):
+            val_dataset = DetDataset(
+                root=val_root,
+                ann_file=val_ann,
+                transform=val_transform,
+                num_classes=cfg.data.num_classes,
+            )
+            val_loader = DataLoader(
+                val_dataset,
+                batch_size=cfg.data.val_batch_size or cfg.data.batch_size,
+                shuffle=False,
+                num_workers=cfg.data.num_workers,
+                collate_fn=det_collate,
+                pin_memory=device.type == "cuda" and cfg.data.pin_memory,
+            )
+            if evaluator is None and getattr(cfg.eval, "compute_map", True):
+                evaluator = COCOEvaluator(ann_file=val_ann)
+        elif require_exists:
+            raise FileNotFoundError(
+                f"Validation dataset not found: val_root={val_root!r}, val_ann={val_ann!r}"
+            )
+    elif val_loader is not None and evaluator is None and getattr(cfg.eval, "compute_map", True):
+        if hasattr(cfg, "data") and getattr(cfg.data, "val_ann", None):
+            val_ann = _resolve_data_path(cfg.data.data_root, cfg.data.val_ann)
+            if os.path.exists(val_ann):
+                evaluator = COCOEvaluator(ann_file=val_ann)
+
+    return val_loader, evaluator
+
+
 def generic_train(
     cfg: Any,
     model: nn.Module,
@@ -98,16 +205,8 @@ def generic_train(
     # -- Dataset & DataLoaders fallback --
     cooldown_epochs = getattr(cfg.optim, "cooldown_epochs", 0)
     if train_loader is None:
-        train_root = (
-            os.path.join(cfg.data.data_root, cfg.data.train_img)
-            if not os.path.isabs(cfg.data.train_img) and not os.path.exists(cfg.data.train_img)
-            else cfg.data.train_img
-        )
-        train_ann = (
-            os.path.join(cfg.data.data_root, cfg.data.train_ann)
-            if not os.path.isabs(cfg.data.train_ann) and not os.path.exists(cfg.data.train_ann)
-            else cfg.data.train_ann
-        )
+        train_root = _resolve_data_path(cfg.data.data_root, cfg.data.train_img)
+        train_ann = _resolve_data_path(cfg.data.data_root, cfg.data.train_ann)
 
         train_transform = build_det_transform(img_size=cfg.data.img_size, is_train=True)
         val_transform = build_det_transform(img_size=cfg.data.img_size, is_train=False)
@@ -141,35 +240,19 @@ def generic_train(
                 drop_last=False,
             )
 
-    if val_loader is None and hasattr(cfg, "data") and getattr(cfg.data, "val_ann", None):
-        val_transform = build_det_transform(img_size=cfg.data.img_size, is_train=False)
-        val_root = (
-            os.path.join(cfg.data.data_root, cfg.data.val_img)
-            if not os.path.isabs(cfg.data.val_img) and not os.path.exists(cfg.data.val_img)
-            else cfg.data.val_img
-        )
-        val_ann = (
-            os.path.join(cfg.data.data_root, cfg.data.val_ann)
-            if not os.path.isabs(cfg.data.val_ann) and not os.path.exists(cfg.data.val_ann)
-            else cfg.data.val_ann
-        )
-        if os.path.exists(val_root) and os.path.exists(val_ann):
-            val_dataset = DetDataset(
-                root=val_root,
-                ann_file=val_ann,
-                transform=val_transform,
-                num_classes=cfg.data.num_classes,
-            )
-            val_loader = DataLoader(
-                val_dataset,
-                batch_size=cfg.data.val_batch_size or cfg.data.batch_size,
-                shuffle=False,
-                num_workers=cfg.data.num_workers,
-                collate_fn=det_collate,
-                pin_memory=device.type == "cuda" and cfg.data.pin_memory,
-            )
-            if evaluator is None and getattr(cfg.eval, "compute_map", True):
-                evaluator = COCOEvaluator(ann_file=val_ann)
+    val_loader, evaluator = _build_val_loader_and_evaluator(
+        cfg=cfg,
+        device=device,
+        val_loader=val_loader,
+        evaluator=evaluator,
+        require_exists=False,
+    )
+
+    # -- Optional weights-only transfer-learning initialization --
+    load_from_path = getattr(cfg.optim, "load_from", None)
+    resume_path = getattr(cfg.optim, "resume", None)
+    if load_from_path and not resume_path:
+        _load_pretrained_weights(model, load_from_path, device=device, strict=False)
 
     # -- Optimizer fallback --
     if optimizer is None:
@@ -197,7 +280,6 @@ def generic_train(
     best_loss = float("inf")
     best_metric = 0.0
 
-    resume_path = getattr(cfg.optim, "resume", None)
     if resume_path:
         if not os.path.exists(resume_path):
             raise FileNotFoundError(f"Resume checkpoint not found: {resume_path}")
@@ -234,7 +316,12 @@ def generic_train(
     )
 
     # -- Epoch loop --
+    metrics_path = os.path.join(work_dir, "metrics.jsonl")
     for epoch in range(start_epoch, cfg.optim.epochs + 1):
+        epoch_start_t = time.perf_counter()
+        if device.type == "cuda":
+            torch.cuda.reset_peak_memory_stats(device)
+
         if epoch == cooldown_epoch and cooldown_loader is not None:
             print(f"\n[Epoch {epoch}] Augmentation Cool-Down: Switched to clean DataLoader.")
             current_train_loader = cooldown_loader
@@ -258,6 +345,7 @@ def generic_train(
 
         # -- Validation --
         is_best = False
+        val_metrics: Dict[str, float] = {}
         if val_loader is not None:
             if epoch % getattr(cfg.eval, "eval_interval", 1) == 0 or epoch == cfg.optim.epochs:
                 eval_model = ema.module if ema is not None else model
@@ -286,6 +374,25 @@ def generic_train(
             if is_best:
                 best_loss = mean_loss
 
+        epoch_time_s = time.perf_counter() - epoch_start_t
+        peak_vram_mb = (
+            torch.cuda.max_memory_allocated(device) / (1024.0 * 1024.0)
+            if device.type == "cuda"
+            else 0.0
+        )
+        record: Dict[str, Any] = {
+            "epoch": epoch,
+            "step": current_step,
+            "train_loss": round(float(mean_loss), 6),
+            "lr": float(optimizer.param_groups[0]["lr"]),
+            "epoch_time_s": round(epoch_time_s, 3),
+            "peak_vram_mb": round(peak_vram_mb, 1),
+        }
+        for k, v in val_metrics.items():
+            record[k] = round(float(v), 6)
+        with open(metrics_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record) + "\n")
+
         # -- Checkpoint saving --
         ckpt = {
             "epoch": epoch,
@@ -304,3 +411,87 @@ def generic_train(
         save_checkpoint(ckpt, os.path.join(work_dir, "last.pth"))
         if is_best:
             save_checkpoint(ckpt, os.path.join(work_dir, "best.pth"))
+
+
+def generic_eval(
+    cfg: Any,
+    model: nn.Module,
+    weights_path: Optional[str] = None,
+    family_tag: str = "detector",
+    val_loader: Optional[DataLoader] = None,
+    evaluator: Optional[Any] = None,
+    val_transform: Optional[Callable] = None,
+) -> Dict[str, Any]:
+    """Evaluate a detection model checkpoint and record COCO metrics, latency, and VRAM.
+
+    Args:
+        cfg: Evaluation/training configuration with nested data, optim, eval, and model attrs.
+        model: Detection model already placed on the target device.
+        weights_path: Optional path to a .pth checkpoint to load before evaluation.
+        family_tag: Short identifier stored in eval_metrics.json (e.g. 'rtmdet').
+        val_loader: Optional pre-built DataLoader for validation.
+        evaluator: Optional metric evaluator (e.g. COCOEvaluator).
+        val_transform: Optional validation transform override (e.g. BGR [0, 255] for YOLOX).
+
+    Returns:
+        Dictionary containing COCO metrics, image count, elapsed time, ms/img, and peak VRAM.
+    """
+    set_seed(getattr(cfg, "seed", 42))
+    work_dir = getattr(cfg, "work_dir", "work_dirs")
+    os.makedirs(work_dir, exist_ok=True)
+    device = torch.device(cfg.optim.device)
+
+    if weights_path:
+        _load_pretrained_weights(model, weights_path, device=device, strict=True)
+
+    val_loader, evaluator = _build_val_loader_and_evaluator(
+        cfg=cfg,
+        device=device,
+        val_loader=val_loader,
+        evaluator=evaluator,
+        val_transform=val_transform,
+        require_exists=True,
+    )
+    if val_loader is None:
+        raise ValueError("Validation DataLoader could not be constructed; check cfg.data settings.")
+
+    if device.type == "cuda":
+        torch.cuda.reset_peak_memory_stats(device)
+        torch.cuda.synchronize(device)
+
+    start_t = time.perf_counter()
+    val_metrics = val_one_epoch(model, val_loader, device=device, evaluator=evaluator)
+    if device.type == "cuda":
+        torch.cuda.synchronize(device)
+    elapsed_s = time.perf_counter() - start_t
+
+    num_images = len(val_loader.dataset)
+    ms_per_img = (elapsed_s / max(num_images, 1)) * 1000.0
+    peak_vram_mb = (
+        torch.cuda.max_memory_allocated(device) / (1024.0 * 1024.0)
+        if device.type == "cuda"
+        else 0.0
+    )
+
+    results: Dict[str, Any] = {
+        "family": family_tag,
+        "weights": weights_path,
+        "num_images": num_images,
+        "elapsed_s": round(elapsed_s, 3),
+        "ms_per_img": round(ms_per_img, 2),
+        "peak_vram_mb": round(peak_vram_mb, 1),
+    }
+    for k, v in val_metrics.items():
+        results[k] = round(float(v), 6)
+
+    out_path = os.path.join(work_dir, "eval_metrics.json")
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=2)
+
+    print(f"--> Evaluation Metrics ({family_tag}): {val_metrics}")
+    print(
+        f"--> Benchmark: {num_images} images in {elapsed_s:.2f}s "
+        f"({ms_per_img:.2f} ms/img, peak_vram={peak_vram_mb:.1f} MB)"
+    )
+    print(f"--> Saved evaluation summary to {out_path}")
+    return results

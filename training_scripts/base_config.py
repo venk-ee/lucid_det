@@ -42,6 +42,7 @@ class OptimConfig:
     min_lr_ratio: float = 0.05
     ema_decay: float = 0.9998
     resume: Optional[str] = None
+    load_from: Optional[str] = None
 
 
 @dataclass

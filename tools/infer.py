@@ -21,6 +21,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from models import build_detector
+from runners import extract_state_dict
 from transforms import letterbox_image, unletterbox_boxes_xyxy
 
 
@@ -46,27 +47,7 @@ def extract_checkpoint_payload(
                 "img_size": meta.get("input_size", (640, 640)),
             }
 
-    if isinstance(ckpt, dict):
-        if "ema" in ckpt and isinstance(ckpt["ema"], dict):
-            ema_val = ckpt["ema"]
-            # ModelEMA saves {"ema": model.state_dict(), "updates": ..., "decay": ...}
-            sd = (
-                ema_val["ema"] if "ema" in ema_val and isinstance(ema_val["ema"], dict) else ema_val
-            )
-        elif "model" in ckpt and isinstance(ckpt["model"], dict):
-            sd = ckpt["model"]
-        elif "state_dict" in ckpt and isinstance(ckpt["state_dict"], dict):
-            sd = ckpt["state_dict"]
-        else:
-            sd = ckpt
-    else:
-        sd = ckpt
-
-    clean_sd: Dict[str, Any] = {}
-    for k, v in sd.items():
-        clean_k = k[7:] if k.startswith("module.") else k
-        clean_sd[clean_k] = v
-
+    clean_sd = extract_state_dict(ckpt)
     return clean_sd, model_cfg, data_cfg, family_hint
 
 
