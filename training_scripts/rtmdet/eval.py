@@ -18,6 +18,7 @@ from runners import generic_eval, set_seed
 from training_scripts.common import add_common_eval_args, apply_common_eval_args
 from training_scripts.rtmdet.config import TrainConfig
 from training_scripts.rtmdet.train import build_model
+from transforms.det_transforms import build_det_transform
 
 
 def run_eval(cfg: TrainConfig, weights_path: Optional[str] = None) -> Dict[str, Any]:
@@ -37,6 +38,11 @@ def run_eval(cfg: TrainConfig, weights_path: Optional[str] = None) -> Dict[str, 
         model=model,
         weights_path=weights_path,
         family_tag="rtmdet",
+        val_transform=build_det_transform(
+            img_size=cfg.data.img_size,
+            bgr=True,
+            is_train=False,
+        ),
     )
 
 
