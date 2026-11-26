@@ -43,7 +43,7 @@ class RTMDet(SingleStageDetector):
         strides = tuple(getattr(backbone, "strides", (8, 16, 32)))
         neck_channels = in_channels[0]
         use_depthwise = arch in ("tiny", "tiny-dw")
-        exp_on_reg = arch not in ("tiny", "tiny-dw", "s")
+        exp_on_reg = False
         num_csp_blocks = {"tiny": 1, "tiny-dw": 1, "s": 1, "m": 2, "l": 3}.get(arch, 1)
 
         if neck is None:

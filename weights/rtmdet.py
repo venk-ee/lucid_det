@@ -68,8 +68,17 @@ def convert_rtmdet(raw_sd: Any, preset: ModelWeightPreset) -> Dict[str, torch.Te
         # Remap OpenMMLab MMDetection / MMYOLO layer names
         new_k = k
         new_k = new_k.replace("bbox_head.", "head.")
+        new_k = new_k.replace("head.head_module.", "head.")
         new_k = new_k.replace(".depthwise_conv.", ".dw.")
         new_k = new_k.replace(".pointwise_conv.", ".pw.")
+        # MMYOLO CSPNeXtPAFPN neck remapping
+        new_k = new_k.replace("neck.reduce_layers.2.", "neck.reduce_layers.0.")
+        new_k = new_k.replace("neck.top_down_layers.0.0.", "neck.top_down_blocks.0.")
+        new_k = new_k.replace("neck.top_down_layers.0.1.", "neck.reduce_layers.1.")
+        new_k = new_k.replace("neck.top_down_layers.1.", "neck.top_down_blocks.1.")
+        new_k = new_k.replace("neck.bottom_up_layers.", "neck.bottom_up_blocks.")
+        new_k = new_k.replace("neck.downsample_layers.", "neck.downsamples.")
+        new_k = new_k.replace("neck.out_layers.", "neck.out_convs.")
 
         clean_sd[new_k] = v
 
